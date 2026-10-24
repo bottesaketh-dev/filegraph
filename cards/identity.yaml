@@ -1,0 +1,33 @@
+name: identity
+version: 1
+description: Identity and civil documents - passports, national ID cards, driving licences, visas, residence permits, birth/marriage certificates, vehicle registration.
+llm: true
+priority: 40
+absorbs: [passport, national_id, aadhaar_card, pan_card, driving_licence, driving_license, visa, residence_permit,
+          birth_certificate, marriage_certificate, vehicle_registration_certificate]
+match:
+  path_globs: ["**/ID/**", "**/Identity/**", "**/Passport*/**"]
+  filename_regex: "(?i)passport|aadhaa?r|\\bpan\\b|licen[cs]e|visa|birth.?cert|marriage.?cert|\\brc\\b"
+  keywords_any: ["passport", "date of expiry", "date of birth", "nationality", "driving licence", "visa", "permanent account number", "unique identification"]
+  min_keyword_hits: 2
+categories: [passport, national_id, tax_id, driving_licence, visa, residence_permit, birth_certificate,
+             marriage_certificate, vehicle_registration, other]
+statuses: [valid, expired, application, copy, unknown]
+main_entity: {role: issuer, kind: organization}
+main_date: expires
+date_labels: [issued, expires, valid_from, birth]
+entity_roles: [holder, issuer, other]
+preferred_fact_keys: [document_number, holder_name, nationality, place_of_issue, place_of_birth, vehicle_registration, visa_type, entries]
+fact_key_aliases:
+  passport_number: document_number
+  passport_no: document_number
+  licence_number: document_number
+  license_number: document_number
+fields:
+  holder_name: {type: text, description: Full name of the holder as printed}
+instructions: |
+  The holder is a person (often the user); the issuer is the authority. Status "expired" only if the expiry date is before today's date shown in the header; otherwise "valid" when an expiry exists.
+review_rules:
+  required_dates:
+    - {label: expires, unless_status: [application], for_categories: [passport, driving_licence, visa, residence_permit]}
+  flag_values: []

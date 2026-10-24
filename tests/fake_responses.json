@@ -1,0 +1,194 @@
+[
+  {
+    "tool": "classify_document",
+    "match": "policy",
+    "args": {
+      "card_type": "generic",
+      "suggested_type": "insurance_policy",
+      "confidence": "high"
+    }
+  },
+  {
+    "tool": "classify_document",
+    "match": "notes.md",
+    "args": {
+      "card_type": "generic",
+      "suggested_type": "personal_notes",
+      "confidence": "medium"
+    }
+  },
+  {
+    "tool": "classify_document",
+    "match": "",
+    "args": {
+      "card_type": "generic",
+      "suggested_type": "document",
+      "confidence": "medium"
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "Personal Notes",
+    "args": {
+      "category": "personal",
+      "title": "Ravi Sharma - Personal Notes",
+      "summary": "Personal reminder notes regarding insurance and travel.",
+      "status": "active",
+      "suggested_type": "personal_notes",
+      "confidence": "medium",
+      "entities": [],
+      "main_entity": null,
+      "dates": [],
+      "facts": [],
+      "references": [],
+      "review_reasons": []
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "REPUBLIC OF INDIA PASSPORT",
+    "args": {
+      "category": "civil",
+      "title": "Government of India - Passport (Ravi Sharma)",
+      "summary": "Republic of India passport issued to Ravi Sharma, valid until March 2029.",
+      "status": "valid",
+      "suggested_type": "passport",
+      "confidence": "high",
+      "entities": [
+        {"name": "Republic of India", "kind": "organization", "role": "issuer"},
+        {"name": "Ravi Sharma", "kind": "person", "role": "holder"}
+      ],
+      "main_entity": "Republic of India",
+      "dates": [
+        {"label": "issued", "date": "2019-03-14", "basis": "stated", "quote": "Date of Issue 14/03/2019", "page": 1},
+        {"label": "expires", "date": "2029-03-13", "basis": "stated", "quote": "Date of Expiry 13/03/2029", "page": 1}
+      ],
+      "facts": [
+        {"key": "passport_number", "value": "Z1234567", "quote": "Passport No Z1234567", "page": 1}
+      ],
+      "references": [],
+      "review_reasons": []
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "ICICI Lombard",
+    "args": {
+      "category": "insurance",
+      "title": "ICICI Lombard - Car insurance policy (2026)",
+      "summary": "Motor vehicle comprehensive insurance policy for vehicle TS09 AB 1234.",
+      "status": "active",
+      "suggested_type": "insurance_policy",
+      "confidence": "high",
+      "entities": [
+        {"name": "ICICI Lombard General Insurance Company", "kind": "organization", "role": "provider"},
+        {"name": "Ravi Sharma", "kind": "person", "role": "client"}
+      ],
+      "main_entity": "ICICI Lombard General Insurance Company",
+      "dates": [
+        {"label": "start", "date": "2026-04-01", "basis": "stated", "quote": "Period of Insurance 01/04/2026", "page": 1},
+        {"label": "expires", "date": "2027-03-31", "basis": "stated", "quote": "to 31/03/2027", "page": 1}
+      ],
+      "facts": [
+        {"key": "policy_number", "value": "3001/123456", "quote": "Policy No 3001/123456", "page": 1},
+        {"key": "premium", "value": "14200", "number": 14200, "unit": "INR", "quote": "Total Premium Rs. 14,200", "page": 1},
+        {"key": "vehicle_registration", "value": "TS09 AB 1234", "quote": "Registration TS09 AB 1234", "page": 1}
+      ],
+      "references": [],
+      "review_reasons": []
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "Payslip",
+    "args": {
+      "category": "payslip",
+      "title": "Northwind Ltd - Payslip August 2026 (Ravi Sharma)",
+      "summary": "Monthly salary slip for August 2026 from Northwind Ltd.",
+      "status": "final",
+      "suggested_type": "salary_slip",
+      "confidence": "high",
+      "entities": [
+        {"name": "Northwind Ltd", "kind": "organization", "role": "employer"},
+        {"name": "Ravi Sharma", "kind": "person", "role": "employee"}
+      ],
+      "main_entity": "Northwind Ltd",
+      "dates": [
+        {"label": "payment_date", "date": "2026-08-31", "basis": "stated", "quote": "Payment Date: 31/08/2026", "page": 1}
+      ],
+      "facts": [
+        {"key": "gross_salary", "value": "120000", "number": 120000, "unit": "INR", "quote": "Gross Salary 1,20,000", "page": 1},
+        {"key": "net_pay", "value": "98500", "number": 98500, "unit": "INR", "quote": "Net Pay 98,500", "page": 1}
+      ],
+      "references": [],
+      "review_reasons": []
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "Master Services Agreement",
+    "args": {
+      "category": "agreement",
+      "title": "Harborline Events - Acme Facility Services - MSA (2023)",
+      "summary": "Master Services Agreement between Harborline Events LLC and Acme Facility Services Inc.",
+      "status": "executed",
+      "suggested_type": "master_services_agreement",
+      "confidence": "high",
+      "entities": [
+        {"name": "Harborline Events LLC", "kind": "organization", "role": "client"},
+        {"name": "Acme Facility Services Inc.", "kind": "organization", "role": "provider"}
+      ],
+      "main_entity": "Acme Facility Services Inc.",
+      "dates": [
+        {"label": "effective", "date": "2023-03-01", "basis": "stated", "quote": "effective as of March 1, 2023", "page": 1},
+        {"label": "expires", "date": "2026-03-01", "basis": "stated", "quote": "through March 1, 2026", "page": 1}
+      ],
+      "facts": [
+        {"key": "governing_law", "value": "Delaware", "quote": "Governing Law: Delaware.", "page": 1}
+      ],
+      "references": [],
+      "review_reasons": []
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "Amendment No. 1",
+    "args": {
+      "category": "amendment",
+      "title": "Harborline Events - Acme Facility Services - Amendment 1 (2026)",
+      "summary": "Amendment extending MSA term through June 2028.",
+      "status": "executed",
+      "suggested_type": "contract_amendment",
+      "confidence": "high",
+      "entities": [
+        {"name": "Harborline Events LLC", "kind": "organization", "role": "client"},
+        {"name": "ACME FACILITY SERVICES INC", "kind": "organization", "role": "provider"}
+      ],
+      "main_entity": "ACME FACILITY SERVICES INC",
+      "dates": [
+        {"label": "effective", "date": "2026-06-01", "basis": "stated", "quote": "effective June 1, 2026", "page": 1},
+        {"label": "expires", "date": "2028-06-01", "basis": "stated", "quote": "through June 1, 2028", "page": 1}
+      ],
+      "facts": [],
+      "references": [
+        {
+          "relation": "amends",
+          "title": "Master Services Agreement",
+          "date": "2023-03-01",
+          "entity": "Acme Facility Services Inc.",
+          "quote": "Master Services Agreement dated March 1, 2023",
+          "page": 1
+        },
+        {
+          "relation": "references",
+          "title": "Statement of Work No. 3",
+          "date": "2024-01-15",
+          "entity": "Acme Facility Services Inc.",
+          "quote": "refers to Statement of Work No. 3 dated 2024-01-15",
+          "page": 1
+        }
+      ],
+      "review_reasons": []
+    }
+  }
+]

@@ -1,0 +1,34 @@
+name: finance
+version: 1
+description: Money documents - bank and card statements, payslips, invoices, bills, receipts, tax returns and notices, loan and investment statements.
+llm: true
+priority: 30
+absorbs: [bank_statement, credit_card_statement, salary_slip, payslip, invoice, utility_bill, electricity_bill,
+          receipt, tax_return, income_tax_return, form_16, loan_statement, investment_statement]
+match:
+  filename_regex: "(?i)statement|payslip|salary|invoice|bill|receipt|itr|form.?16|tax"
+  keywords_any: ["statement period", "opening balance", "closing balance", "net pay", "gross salary", "invoice number",
+                 "amount due", "due date", "tax invoice", "gstin", "assessment year"]
+  min_keyword_hits: 2
+categories: [bank_statement, credit_card_statement, payslip, invoice, utility_bill, receipt, tax_return, tax_notice,
+             loan, investment_statement, other]
+statuses: [paid, unpaid, final, draft, not_applicable, unknown]
+main_entity: {role: provider, kind: organization}
+main_date: [due, period_end, issued, paid]
+date_labels: [issued, due, paid, period_start, period_end]
+entity_roles: [provider, bank, employer, employee, customer, payer, payee, tax_authority, other]
+preferred_fact_keys: [total_amount, amount_due, net_pay, gross_pay, opening_balance, closing_balance, tax_amount,
+                      invoice_number, account_number, gstin, pan, assessment_year]
+fact_key_aliases:
+  net_salary: net_pay
+  take_home: net_pay
+  gross_salary: gross_pay
+  balance_due: amount_due
+fields: {}
+relations: [pays, references]
+instructions: |
+  For statements, period_start and period_end are the statement period. For bills and invoices, record amount_due and the due date.
+review_rules:
+  required_dates:
+    - {label: due, unless_status: [paid, not_applicable], for_categories: [invoice, utility_bill]}
+  flag_values: []

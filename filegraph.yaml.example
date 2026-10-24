@@ -1,0 +1,57 @@
+me:
+  names: ["Your Full Name", "Y. Name"]           # the user; treated as a self entity
+  organizations: ["Your Company LLC"]            # user's own companies; self entities
+
+roots:
+  - path: ~/Documents
+    name: documents
+    profile: auto          # auto | <card name> (force one card type for the whole root)
+    llm: cloud             # cloud | local | metadata_only
+  - path: ~/Documents/Medical
+    name: medical
+    profile: auto
+    llm: local
+  - path: ~/code
+    name: code
+    profile: auto
+    llm: cloud
+
+ignore:                    # gitignore-style patterns, applied to every root (plus each repo's .gitignore)
+  - "node_modules/"
+  - ".venv/"
+  - "venv/"
+  - "__pycache__/"
+  - "dist/"
+  - "build/"
+  - ".git/"
+  - ".idea/"
+  - ".vscode/"
+  - "*.lock"
+  - "*.min.js"
+  - "*.map"
+
+deny:                      # never opened, never stored (Section 7.4); merged with built-in deny list
+  - "**/.ssh/**"
+  - "**/*.kdbx"
+
+limits:
+  max_file_mb: 50          # larger files: tier 0 only
+  max_text_chars_per_file: 2000000
+  confirm_tokens_over: 2000000   # extract asks for confirmation above this estimate
+
+extraction:
+  head_pages: 8
+  tail_pages: 4
+  max_image_pages: 8
+  max_text_chars: 60000
+  image_dpi: 110
+  workers: 4
+
+code:
+  per_file_llm: false      # files inside repos get deterministic code cards only
+  repo_summaries: true
+
+search:
+  rrf_k: 60
+  bm25_candidates: 50
+  vector_candidates: 50

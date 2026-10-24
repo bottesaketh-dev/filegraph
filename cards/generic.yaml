@@ -1,0 +1,30 @@
+name: generic
+version: 1
+description: Any document that does not fit a more specific card.
+llm: true
+priority: 0
+absorbs: []
+categories: [finance, medical, identity, legal, work, education, travel, housing, vehicle, insurance, tax, personal,
+             correspondence, receipt_or_invoice, manual_or_reference, notes, data_or_spreadsheet, image_or_photo, other]
+statuses: [final, draft, signed, unsigned, not_applicable, unknown]
+main_entity: {role: counterparty, kind: organization}
+main_date: [expires, due, effective, start, issued, event, signed]
+date_labels: [issued, effective, start, end, expires, due, paid, renewal, signed, event, birth]
+entity_roles: [sender, recipient, issuer, author, counterparty, holder, provider, customer, employer, employee,
+               landlord, tenant, insurer, bank, doctor, patient, other]
+preferred_fact_keys: [amount, total_amount, currency, reference_number, invoice_number, order_number, account_number,
+                      policy_number, plan_name, address, phone, email, duration, quantity]
+fact_key_aliases:
+  total: total_amount
+  grand_total: total_amount
+  ref_no: reference_number
+  reference_no: reference_number
+  invoice_no: invoice_number
+  policy_no: policy_number
+fields: {}
+relations: [replies_to, pays, amends, renews_or_extends, terminates, references]
+instructions: |
+  Pick the closest broad category. Use suggested_type to say precisely what the document is.
+review_rules:
+  required_dates: []
+  flag_values: []

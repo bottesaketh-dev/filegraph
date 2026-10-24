@@ -1,0 +1,6 @@
+langchain-google-genai>=2.0       # Gemini via native client (OpenAI-compatible endpoint also works)
+sentence-transformers>=3.0        # local embeddings (recommended)
+sqlite-vec>=0.1                   # fast vector search inside SQLite
+tree-sitter-language-pack>=0.2    # better symbol extraction for non-Python code
+mcp>=1.2                          # MCP server for Claude Desktop / Claude Code
+watchdog>=4.0                     # `fg watch`

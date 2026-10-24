@@ -1,0 +1,63 @@
+name: legal
+version: 1
+description: Contracts and legal documents - agreements, amendments, SOWs, order forms, NDAs, side letters, renewals, notices, guarantees, LOIs, powers of attorney, corporate records.
+llm: true
+priority: 60
+absorbs: [contract, agreement, master_services_agreement, amendment, statement_of_work, order_form, nda,
+          non_disclosure_agreement, side_letter, lease, rental_agreement, letter_of_intent, power_of_attorney]
+match:
+  path_globs: ["**/Legal/**", "**/Contracts/**", "**/Agreements/**"]
+  keywords_any: ["agreement", "amendment", "statement of work", "non-disclosure", "whereas", "in witness whereof",
+                 "governing law", "effective date", "hereinafter"]
+  min_keyword_hits: 3
+categories: [contract, amendment, statement_of_work, order_form, nda, side_letter, renewal_or_extension,
+             termination_or_notice, guarantee_or_security, letter_of_intent, power_of_attorney, corporate_record,
+             correspondence, invoice_or_financial, schedule_or_exhibit, tracker_or_register, other]
+statuses: [executed, partially_executed, unsigned_final, draft, redline, not_applicable, unknown]
+main_entity: {role: counterparty, kind: organization}
+main_date: effective
+date_labels: [effective, execution, expiration, renewal_notice, termination]
+entity_roles: [counterparty, our_entity, guarantor, signatory, other]
+preferred_fact_keys: [contract_value, notice_period, payment_terms, term_length]
+fact_key_aliases: {}
+fields:
+  doc_type: {type: text, description: "Specific type as written, e.g. 'Master Services Agreement', 'Amendment No. 2', 'Mutual NDA', 'Email'"}
+  our_entity: {type: text, description: Which of the user's own organizations is a party}
+  effective_date_basis:
+    type: enum
+    values: [stated, date_of_last_signature, date_of_first_signature, signature_date_only, retroactive,
+             by_reference_to_other_agreement, inferred_from_other_dates, not_found]
+  term_summary: {type: text, description: One line on term and renewal}
+  auto_renewal: {type: boolean}
+  governing_law: {type: text}
+  contract_value: {type: amount, description: Headline value with currency, as written}
+relations: [amends, amends_and_restates, supersedes, issued_under, side_letter_to, guarantees, terminates,
+            renews_or_extends, assigns, references]
+instructions: |
+  The counterparty is the main party that is NOT one of the user's organizations.
+  Effective date (label "effective") = when the document's obligations take effect, as the document defines it:
+  * "effective as of June 1, 2026" -> that date (effective_date_basis "stated"), even if signatures are later.
+  * A start date earlier than the signatures -> effective_date_basis "retroactive".
+  * "effective on the date of the last signature below" -> latest signature date ("date_of_last_signature").
+  * No effective-date clause but dated signatures -> latest signature date, "signature_date_only", add a review reason.
+  * Amendments, SOWs and order forms have their OWN effective date - never copy the parent agreement's date.
+  * Not determinable -> no "effective" date and effective_date_basis "not_found".
+  Also record "execution" (latest signature) and "expiration" dates when present.
+  Status:
+  - executed: all parties have signed (signatures, /s/, e-signature certificates, or clear statements of execution).
+  - partially_executed: some but not all signature blocks completed. unsigned_final: clean version with empty signature blocks.
+  - draft or redline: DRAFT markers, tracked changes, comments, bracketed blanks. not_applicable: emails, trackers, invoices.
+  References: list every other agreement this document amends, restates, supersedes, is issued under (SOWs, order forms,
+  purchase orders under a master agreement), is a side letter to, guarantees, terminates, renews or assigns. Use
+  "references" for other mentions that matter. Include the referenced agreement's date if stated. For an email,
+  reference the agreements it transmits or discusses.
+  Spreadsheets: say what the sheet tracks (category tracker_or_register, schedule_or_exhibit or invoice_or_financial).
+review_rules:
+  required_dates:
+    - label: effective
+      unless_status: [draft, redline]
+      for_categories: [contract, amendment, statement_of_work, order_form, nda, side_letter, renewal_or_extension,
+                       guarantee_or_security, letter_of_intent]
+  flag_values:
+    - {field: effective_date_basis, values: [signature_date_only, inferred_from_other_dates, by_reference_to_other_agreement],
+       reason: "effective date not stated directly"}
