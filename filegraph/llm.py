@@ -318,15 +318,16 @@ def call_tool(
         try:
             bound = chat.bind_tools(lc_tools, tool_choice=tool_name)
             resp = bound.invoke(messages, config={"max_tokens": max_tokens})
-            args, usage = _extract_tool_call(resp, tool_name, tool)
+            args, usage = _extract_tool_call(resp, tool_name, actual_tool)
             if args is not None:
                 return args, usage
             break  # no tool call — fall through to retry strategies
         except Exception as exc:
             if _is_auth_error(exc):
                 raise
-            if "tool_choice" in str(exc).lower():
-                break  # provider doesn't support tool_choice — fall through
+            err_str = str(exc).lower()
+            if "does not support tools" in err_str or "tool_choice" in err_str or "tools" in err_str:
+                break  # provider doesn't support tools — fall through to Attempt 3
             if _is_retryable(exc) and attempt < 2:
                 time.sleep(_RETRY_DELAYS[attempt])
                 continue
@@ -339,23 +340,34 @@ def call_tool(
         try:
             bound = chat.bind_tools(lc_tools, tool_choice=tc)
             resp = bound.invoke(messages, config={"max_tokens": max_tokens})
-            args, usage = _extract_tool_call(resp, tool_name, tool)
+            args, usage = _extract_tool_call(resp, tool_name, actual_tool)
             if args is not None:
                 return args, usage
         except Exception:
             continue
 
-    # Attempt 3: parse JSON from text response
+    # Attempt 3: call WITHOUT tools, append schema to prompt instructions, and parse JSON from text output
     try:
-        bound = chat.bind_tools(lc_tools)
-        resp = bound.invoke(messages, config={"max_tokens": max_tokens})
-        args, usage = _extract_tool_call(resp, tool_name, tool)
-        if args is not None:
-            return args, usage
-        # Try to parse JSON from the text
+        schema_json = json.dumps(actual_tool.get("input_schema", actual_tool.get("parameters", {})), indent=2)
+        json_instruction = (
+            f"\n\nYou MUST record this document by outputting a valid JSON object matching the following schema for '{tool_name}':\n"
+            f"```json\n{schema_json}\n```\n"
+            f"Respond ONLY with the JSON object, with no markdown fences or other text."
+        )
+
+        fallback_messages = list(messages)
+        if fallback_messages and isinstance(fallback_messages[-1].content, str):
+            fallback_messages[-1] = HumanMessage(content=fallback_messages[-1].content + json_instruction)
+        elif fallback_messages and isinstance(fallback_messages[-1].content, list):
+            new_blocks = list(fallback_messages[-1].content) + [{"type": "text", "text": json_instruction}]
+            fallback_messages[-1] = HumanMessage(content=new_blocks)
+        else:
+            fallback_messages.append(HumanMessage(content=json_instruction))
+
+        resp = chat.invoke(fallback_messages)
         text = resp.content if isinstance(resp.content, str) else str(resp.content)
         args = _parse_json_from_text(text)
-        if args:
+        if args is not None:
             return args, _extract_usage(resp)
     except Exception:
         pass

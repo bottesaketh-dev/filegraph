@@ -100,6 +100,7 @@ def build_instances() -> dict[str, dict[str, Any]]:
 
     # --- Ollama (local) ---
     ollama_model = _env("OLLAMA_MODEL", "qwen2.5:14b")
+    is_vision = "vl" in ollama_model.lower() or _env("OLLAMA_VISION", "0") == "1"
     try:
         from langchain_openai import ChatOpenAI
 
@@ -110,7 +111,7 @@ def build_instances() -> dict[str, dict[str, Any]]:
                 base_url="http://localhost:11434/v1",
                 temperature=0,
             ),
-            "VISION": False,
+            "VISION": is_vision,
         }
     except Exception:
         pass
