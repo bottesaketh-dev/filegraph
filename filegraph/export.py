@@ -32,59 +32,85 @@ def export_graph(conn: Any, settings: Settings, out_path: Path | str = "graph.ht
     ENT_OFFSET = 10_000_000
     REPO_OFFSET = 20_000_000
 
-    # 1. Documents
-    doc_rows = conn.execute(
+    # Fetch all doc entities to attach to document nodes
+    doc_entities_rows = conn.execute(
         """
-        SELECT d.*, f.root_id, f.rel_path, f.missing, r.name as root_name
-        FROM documents d
-        JOIN files f ON f.id = d.file_id
+        SELECT de.file_id, e.id, e.name, e.kind, de.role, e.is_self
+        FROM doc_entities de
+        JOIN entities e ON e.id = de.entity_id
+        """
+    ).fetchall()
+    doc_entities_by_file: dict[int, list[dict[str, Any]]] = {}
+    for de in doc_entities_rows:
+        doc_entities_by_file.setdefault(de["file_id"], []).append({
+            "id": de["id"],
+            "name": de["name"],
+            "kind": de["kind"],
+            "role": de["role"],
+            "is_self": bool(de["is_self"]),
+        })
+
+    # 1. Documents & Files (include all non-missing files)
+    file_rows = conn.execute(
+        """
+        SELECT f.id as file_id, f.rel_path, r.name as root_name,
+               d.card_type, d.category, d.title, d.status, d.confidence,
+               d.summary, d.main_date, d.main_entity_name
+        FROM files f
+        LEFT JOIN documents d ON d.file_id = f.id
         LEFT JOIN roots r ON r.id = f.root_id
         WHERE f.missing = 0
         """
     ).fetchall()
 
     doc_ids = set()
-    for dr in doc_rows:
-        fid = dr["file_id"]
+    for fr in file_rows:
+        fid = fr["file_id"]
         doc_ids.add(fid)
-        ctype = dr["card_type"] or "generic"
+        ctype = fr["card_type"] or "generic"
+        cat = fr["category"] or ""
 
         # Read facts and dates
         facts_rows = conn.execute(
             "SELECT key, COALESCE(value_text, CAST(value_num AS TEXT), '') as value FROM doc_facts WHERE file_id = ? LIMIT 8", (fid,)
         ).fetchall()
-        facts_dict = {fr["key"]: fr["value"] for fr in facts_rows}
+        facts_dict = {row["key"]: row["value"] for row in facts_rows}
 
         root_path = Path(settings.roots[0].path) if settings.roots else Path.cwd()
         for root_cfg in settings.roots:
-            if root_cfg.name == dr["root_name"]:
+            if root_cfg.name == fr["root_name"]:
                 root_path = Path(root_cfg.path)
                 break
-        full_p = root_path / dr["rel_path"]
+        full_p = root_path / fr["rel_path"]
         file_url = full_p.as_uri()
+
+        title = fr["title"] or Path(fr["rel_path"]).name
+        summary = fr["summary"] or f"File {Path(fr['rel_path']).name}"
 
         nodes.append({
             "id": fid,
-            "label": dr["title"] or Path(dr["rel_path"]).name,
-            "subtitle": f"{ctype} · {dr['category'] or ''}",
+            "label": title,
+            "subtitle": f"{ctype} · {cat}" if cat else ctype,
             "group": ctype,
+            "category": cat,
             "kind": "doc",
-            "status": dr["status"],
-            "confidence": dr["confidence"],
-            "summary": dr["summary"],
-            "main_date": dr["main_date"],
-            "main_entity": dr["main_entity_name"],
-            "rel_path": dr["rel_path"],
+            "status": fr["status"],
+            "confidence": fr["confidence"],
+            "summary": summary,
+            "main_date": fr["main_date"],
+            "main_entity": fr["main_entity_name"],
+            "rel_path": fr["rel_path"],
             "file_url": file_url,
             "facts": facts_dict,
+            "entities": doc_entities_by_file.get(fid, []),
         })
 
-    # 2. Entities (excluding is_self=1)
+    # 2. Entities
     ent_rows = conn.execute(
         """
         SELECT e.*, (SELECT COUNT(*) FROM doc_entities de WHERE de.entity_id = e.id) as mention_count
         FROM entities e
-        WHERE e.is_self = 0 AND (
+        WHERE (
             e.id IN (SELECT DISTINCT entity_id FROM doc_entities)
             OR e.id IN (SELECT DISTINCT main_entity_id FROM documents WHERE main_entity_id IS NOT NULL)
         )
@@ -100,6 +126,7 @@ def export_graph(conn: Any, settings: Settings, out_path: Path | str = "graph.ht
             "subtitle": f"Entity: {er['kind']}",
             "group": "entity",
             "kind": "entity",
+            "is_self": bool(er["is_self"]),
             "status": None,
             "confidence": None,
             "summary": f"{er['name']} ({er['kind']}) — mentioned across documents",
@@ -135,25 +162,39 @@ def export_graph(conn: Any, settings: Settings, out_path: Path | str = "graph.ht
     # 4. Edges: doc -> entity (doc_entities)
     de_rows = conn.execute(
         """
-        SELECT de.file_id, de.entity_id, de.role, de.raw_name, e.is_self
+        SELECT de.file_id, de.entity_id, de.role, de.raw_name, e.kind, e.is_self
         FROM doc_entities de
         JOIN entities e ON e.id = de.entity_id
         WHERE e.is_self = 0
         """
     ).fetchall()
 
+    doc_entity_edges: dict[tuple[int, int], dict[str, Any]] = {}
     for de in de_rows:
         fid = de["file_id"]
         graph_eid = ENT_OFFSET + de["entity_id"]
-        role = de["role"]
-        is_main = (role == "main_party")
-        edges.append({
-            "from": fid,
-            "to": graph_eid,
-            "edge_type": "party" if is_main else "mentioned_in",
-            "evidence": de["raw_name"],
-            "arrows": "to",
-        })
+        role = (de["role"] or "").lower()
+        ekind = de["kind"]
+        is_main = (
+            role in ("main_party", "issuer", "provider", "counterparty", "employer", "school", "college", "institution", "insurer", "bank", "board", "company", "author")
+            or ekind == "organization"
+        )
+        pair_key = (fid, graph_eid)
+
+        if pair_key in doc_entity_edges:
+            if is_main:
+                doc_entity_edges[pair_key]["edge_type"] = "party"
+        else:
+            doc_entity_edges[pair_key] = {
+                "id": f"e_de_{fid}_{graph_eid}",
+                "from": fid,
+                "to": graph_eid,
+                "edge_type": "party" if is_main else "mentioned_in",
+                "evidence": de["raw_name"],
+                "arrows": "to",
+            }
+
+    edges.extend(doc_entity_edges.values())
 
     # 5. Edges from edges table
     edge_rows = conn.execute(
@@ -166,13 +207,15 @@ def export_graph(conn: Any, settings: Settings, out_path: Path | str = "graph.ht
         """
     ).fetchall()
 
-    for er in edge_rows:
+    for idx, er in enumerate(edge_rows):
         src = er["src_id"]
         dst = er["dst_id"]
         if dst is None:
             # Unresolved reference node
             continue
+        edge_id = er["id"] if "id" in er.keys() else idx
         edges.append({
+            "id": f"e_db_{edge_id}_{src}_{dst}_{idx}",
             "from": src,
             "to": dst,
             "edge_type": er["edge_type"],
@@ -184,8 +227,9 @@ def export_graph(conn: Any, settings: Settings, out_path: Path | str = "graph.ht
     repo_files = conn.execute(
         "SELECT id, repo_id FROM files WHERE repo_id IS NOT NULL AND missing = 0"
     ).fetchall()
-    for rf in repo_files:
+    for idx, rf in enumerate(repo_files):
         edges.append({
+            "id": f"e_rf_{rf['repo_id']}_{rf['id']}_{idx}",
             "from": REPO_OFFSET + rf["repo_id"],
             "to": rf["id"],
             "edge_type": "contains_file",
@@ -198,8 +242,23 @@ def export_graph(conn: Any, settings: Settings, out_path: Path | str = "graph.ht
         "edges": edges,
     }
 
+    # Inline vis-network script for 100% offline self-contained standalone execution
+    vis_file = Path("vis-network.min.js").resolve()
+    if not vis_file.is_file():
+        vis_file = Path(__file__).resolve().parent.parent / "vis-network.min.js"
+
+    if vis_file.is_file():
+        vis_code = vis_file.read_text(encoding="utf-8")
+        vis_script_tag = f"<script type=\"text/javascript\">\n{vis_code}\n</script>"
+    else:
+        vis_script_tag = '<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>'
+
     embedded_json = _escape_script_json(graph_data)
-    html_content = GRAPH_HTML_TEMPLATE.replace("__GRAPH_DATA__", embedded_json)
+    html_content = (
+        GRAPH_HTML_TEMPLATE
+        .replace("__GRAPH_DATA__", embedded_json)
+        .replace("__VIS_NETWORK_SCRIPT__", vis_script_tag)
+    )
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(html_content, encoding="utf-8")

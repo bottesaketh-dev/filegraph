@@ -135,7 +135,7 @@ def build_blocks(
 
     today_str = datetime.date.today().isoformat()
     header_lines = [
-        f"Today: {today_str}",
+        f"Today: {today_str} (Reference system date only. NEVER extract this 'Today:' date as a document date)",
         f"File path: {rel_path}",
         f"Root: {root_name}",
         f"File type: {ext} | Total pages: {page_count}",
@@ -207,7 +207,12 @@ def build_blocks(
         body_lines.append("")
 
     body_lines.append("--- END OF CONTENT ---")
-    body_lines.append("Record this document with the record_card tool.")
+    body_lines.append(
+        "Record this document with the record_card tool.\n"
+        "STRICT EXTRACTION RULES:\n"
+        "1. Never extract the 'Today:' header date as a document date. Extract ONLY dates stated or clearly evidenced inside the document content.\n"
+        "2. For undated notes or documents (such as Markdown project overviews), leave the dates list empty."
+    )
 
     full_text = "\n".join(body_lines)
     full_text, _ = redact(full_text)

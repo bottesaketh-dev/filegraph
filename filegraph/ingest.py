@@ -15,6 +15,7 @@ from filegraph.config import RootConfig, Settings
 from filegraph.db import connect, now
 from filegraph.parse import classify_kind, parse_file
 from filegraph.repos import update_repos
+from filegraph.security import redact
 from filegraph.walk import find_enclosing_repo, walk_root
 
 
@@ -156,7 +157,8 @@ def _store_attachments(
             for p_num, p_text in res.get("pages", []):
                 if total_chars >= max_chars:
                     break
-                allowed_text = p_text[: max_chars - total_chars]
+                raw_text = p_text[: max_chars - total_chars]
+                allowed_text, _ = redact(raw_text)
                 total_chars += len(allowed_text)
                 lbl = res.get("labels", {}).get(p_num, f"Page {p_num}")
                 sl, el = res.get("lines", {}).get(p_num, (None, None))
@@ -490,7 +492,8 @@ def ingest(
             for p_num, p_text in res.get("pages", []):
                 if total_chars >= max_chars:
                     break
-                allowed_text = p_text[: max_chars - total_chars]
+                raw_text = p_text[: max_chars - total_chars]
+                allowed_text, _ = redact(raw_text)
                 total_chars += len(allowed_text)
                 lbl = res.get("labels", {}).get(p_num, f"Page {p_num}")
                 sl, el = res.get("lines", {}).get(p_num, (None, None))

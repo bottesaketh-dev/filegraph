@@ -1,10 +1,10 @@
 me:
-  names: ["Saketh Botte", "B. Saketh"]           # the user; treated as a self entity
+  names: ["Saketh Botte", "Botte Saketh", "B. Saketh"]           # the user; treated as a self entity
   organizations: [""]            # user's own companies; self entities
 
 roots:
-  - path: C:\Users\SakethBotte\Documents_and_Certificates\Saketh
-    name: saketh_docs
+  - path: C:\Users\SakethBotte\Documents_and_Certificates
+    name: docs
     profile: auto          # auto | <card name>
     llm: local             # uses Ollama local model
 

@@ -11,14 +11,14 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  __VIS_NETWORK_SCRIPT__
   <style>
     :root {
       --bg: #0f172a;
-      --bg-panel: rgba(30, 41, 59, 0.85);
-      --bg-card: rgba(15, 23, 42, 0.7);
-      --border: rgba(148, 163, 184, 0.15);
-      --border-focus: rgba(99, 102, 241, 0.5);
+      --bg-panel: rgba(30, 41, 59, 0.88);
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --border: rgba(148, 163, 184, 0.18);
+      --border-focus: rgba(99, 102, 241, 0.6);
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --accent: #6366f1;
@@ -30,15 +30,15 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
 
     body.light {
       --bg: #f8fafc;
-      --bg-panel: rgba(255, 255, 255, 0.9);
-      --bg-card: rgba(241, 245, 249, 0.85);
-      --border: rgba(100, 116, 139, 0.2);
+      --bg-panel: rgba(255, 255, 255, 0.92);
+      --bg-card: rgba(241, 245, 249, 0.9);
+      --border: rgba(100, 116, 139, 0.22);
       --border-focus: rgba(99, 102, 241, 0.6);
       --text: #0f172a;
       --text-muted: #64748b;
       --accent: #4f46e5;
       --accent-hover: #4338ca;
-      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,11 +53,12 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     #network {
-      width: 100%;
-      height: 100%;
-      position: absolute;
+      width: 100vw;
+      height: 100vh;
+      position: fixed;
       top: 0;
       left: 0;
+      z-index: 1;
     }
 
     /* Header / Top Control Bar */
@@ -95,7 +96,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       font-weight: 700;
       font-size: 16px;
       letter-spacing: -0.02em;
-      background: linear-gradient(135deg, #a5b4fc, #6366f1, #c084fc);
+      background: linear-gradient(135deg, #a5b4fc, #6366f1, #38bdf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -111,7 +112,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
     .controls-box {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       background: var(--bg-panel);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border);
@@ -135,16 +136,16 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       color: var(--text);
       font-family: inherit;
       font-size: 13px;
-      padding: 6px 32px 6px 10px;
-      width: 220px;
+      padding: 6px 30px 6px 10px;
+      width: 200px;
       outline: none;
       transition: all 0.2s;
     }
 
     .search-input:focus {
       border-color: var(--border-focus);
-      width: 280px;
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      width: 260px;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
     }
 
     .search-shortcut {
@@ -158,7 +159,6 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       pointer-events: none;
     }
 
-    /* Dropdown for search results */
     .search-results {
       position: absolute;
       top: 100%;
@@ -167,12 +167,12 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       background: var(--bg-panel);
       border: 1px solid var(--border);
       border-radius: 8px;
-      margin-top: 4px;
+      margin-top: 6px;
       max-height: 280px;
       overflow-y: auto;
-      display: none;
-      z-index: 100;
       box-shadow: var(--shadow);
+      display: none;
+      z-index: 30;
     }
 
     .search-item {
@@ -180,17 +180,20 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       font-size: 12px;
       cursor: pointer;
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
       border-bottom: 1px solid var(--border);
     }
 
-    .search-item:hover, .search-item.active {
-      background: var(--border-focus);
-      color: #fff;
+    .search-item:last-child {
+      border-bottom: none;
     }
 
-    /* Toggle Buttons */
+    .search-item:hover {
+      background: rgba(99, 102, 241, 0.15);
+    }
+
+    /* Buttons */
     .btn-toggle {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -199,12 +202,13 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       font-family: inherit;
       font-size: 12px;
       font-weight: 500;
-      padding: 6px 10px;
+      padding: 6px 9px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       transition: all 0.2s;
+      user-select: none;
     }
 
     .btn-toggle:hover {
@@ -237,7 +241,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       background: var(--bg-panel);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border);
-      padding: 8px 16px;
+      padding: 6px 14px;
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       display: flex;
@@ -279,7 +283,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       top: 16px;
       bottom: 16px;
       right: 16px;
-      width: 380px;
+      width: 390px;
       background: var(--bg-panel);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -289,7 +293,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       z-index: 20;
-      transform: translateX(420px);
+      transform: translateX(430px);
       transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       overflow: hidden;
     }
@@ -319,14 +323,14 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       text-transform: uppercase;
       font-weight: 700;
       letter-spacing: 0.05em;
-      padding: 2px 8px;
+      padding: 3px 8px;
       border-radius: 4px;
     }
 
     .drawer-title {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
-      line-height: 1.3;
+      line-height: 1.35;
       word-break: break-word;
     }
 
@@ -369,6 +373,65 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       color: var(--text);
     }
 
+    /* Entity Cards in Drawer */
+    .entity-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .entity-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .entity-card.primary {
+      border-color: rgba(99, 102, 241, 0.45);
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    .entity-card.secondary {
+      border-color: rgba(245, 158, 11, 0.4);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .entity-role-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .role-primary {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .role-secondary {
+      background: rgba(245, 158, 11, 0.25);
+      color: #f59e0b;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .role-org {
+      background: rgba(139, 92, 246, 0.25);
+      color: #a78bfa;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+    }
+
+    .role-other {
+      background: rgba(100, 116, 139, 0.2);
+      color: var(--text-muted);
+    }
+
     .meta-table {
       width: 100%;
       border-collapse: collapse;
@@ -402,11 +465,12 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       display: flex;
       justify-content: space-between;
       align-items: center;
-      transition: background 0.2s;
+      transition: border-color 0.2s, background 0.2s;
     }
 
     .connected-item:hover {
       border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.1);
     }
 
     .connected-rel {
@@ -427,7 +491,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       text-decoration: none;
       font-size: 12px;
       font-weight: 600;
-      margin-top: 10px;
+      margin-top: 6px;
       transition: background 0.2s;
     }
 
@@ -462,10 +526,18 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
 
     <div class="controls-box">
       <div class="search-wrapper">
-        <input type="text" class="search-input" id="search-input" placeholder="Search files, entities, repos...">
+        <input type="text" class="search-input" id="search-input" placeholder="Search files, entities...">
         <span class="search-shortcut">/</span>
         <div class="search-results" id="search-results"></div>
       </div>
+
+      <button class="btn-toggle active" id="btn-group-folder" title="Group documents by folder hubs">
+        <span>📁</span> Folders
+      </button>
+
+      <button class="btn-toggle" id="btn-layout-tree" title="Toggle Hierarchical Tree view (Left-to-Right)">
+        <span>🌳</span> Tree
+      </button>
 
       <button class="btn-toggle" id="btn-labels" title="Toggle node labels">
         <span>🏷️</span> Labels
@@ -475,12 +547,16 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
         <span>🎯</span> Focus
       </button>
 
-      <button class="btn-toggle" id="btn-code" title="Toggle code imports">
-        <span>💻</span> Code
+      <button class="btn-toggle" id="btn-orphans" title="Show or hide 0-degree disconnected nodes">
+        <span>👻</span> Orphans
       </button>
 
       <button class="btn-toggle" id="btn-mentions" title="Show all entity mentions">
-        <span>👥</span> All Mentions
+        <span>👥</span> Mentions
+      </button>
+
+      <button class="btn-toggle" id="btn-top25" title="Focus on busiest hubs">
+        <span>🌐</span> <span id="top25-text">Top Hubs</span>
       </button>
 
       <button class="btn-toggle" id="btn-fit" title="Fit to view">
@@ -517,51 +593,132 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
   <script>
     const GRAPH_DATA = __GRAPH_DATA__;
 
-    const CARD_COLORS = {
-      identity: '#f59e0b',
-      finance: '#10b981',
-      legal: '#8b5cf6',
-      generic: '#0ea5e9',
-      code: '#06b6d4',
-      entity: '#ec4899',
-      repo: '#6366f1',
-      missing: '#ef4444',
-      other: '#64748b'
+    // Semantic domain color palette
+    const VISUAL_COLORS = {
+      education: '#6366f1',   // Indigo (Certificates, Memos)
+      projects: '#06b6d4',    // Cyan (Straive project overviews)
+      identity: '#f59e0b',    // Amber (Aadhaar, Voter ID, Passport)
+      finance: '#10b981',     // Emerald (Invoices, Tax, Bank)
+      awards: '#a855f7',      // Purple (Training, Awards, Slides)
+      folder: '#3b82f6',      // Blue Hub (Folder Cluster)
+      entity: '#ec4899',      // Pink Diamond (Institutions, Orgs)
+      tech_stack: '#64748b',  // Slate (Technologies & Tools)
+      repo: '#8b5cf6',        // Violet (Code Repositories)
+      generic: '#0ea5e9'      // Sky Blue (Other Documents)
     };
+
+    // Self names to suppress as central star-hubs
+    const SELF_NORMS = new Set([
+      'botte saketh', 'saketh botte', 'mr botte saketh', 'mr saketh botte',
+      'saketh botte b saketh', 'saketh botte, b. saketh',
+      'sri/srimathi/kumari botte saketh', 'sri srimathi kumari botte saketh',
+      'saketh'
+    ]);
 
     let network = null;
     let allNodes = [];
     let allEdges = [];
-    let activeNodes = new vis.DataSet();
-    let activeEdges = new vis.DataSet();
-    let hiddenGroups = new Set();
-    let allLabelsEnabled = false;
+    let activeNodes = null;
+    let activeEdges = null;
+
+    let groupByFolderEnabled = true;
+    let hierarchicalEnabled = false;
+    let showOrphansEnabled = true;
+    let allLabelsEnabled = true;
     let focusModeEnabled = false;
     let showCodeEnabled = false;
     let showAllMentions = false;
+    let top25Active = false;
     let selectedNodeId = null;
+    let hiddenGroups = new Set();
+    let currentFilteredEdges = [];
+
+    // Derive semantic visual group based on folder path, entity kind, and category
+    function deriveVisualGroup(n) {
+      if (n.kind === 'folder') return 'folder';
+      if (n.kind === 'repo') return 'repo';
+      if (n.kind === 'entity') {
+        const kind = (n.facts && n.facts.Kind) ? n.facts.Kind : 'entity';
+        return kind === 'product' ? 'tech_stack' : 'entity';
+      }
+      const p = (n.rel_path || '').toLowerCase();
+      if (p.includes('educational_certificates')) return 'education';
+      if (p.includes('straive_documents')) return 'projects';
+      if (p.includes('personal_documents')) return 'identity';
+      if (p.includes('invoices')) return 'finance';
+      if (p.includes('training_and_achievement')) return 'awards';
+
+      const cat = (n.category || n.group || '').toLowerCase();
+      if (cat.includes('education') || cat.includes('certificate')) return 'education';
+      if (cat.includes('project') || cat.includes('tech')) return 'projects';
+      if (cat.includes('identity') || cat.includes('passport') || cat.includes('birth')) return 'identity';
+      if (cat.includes('finance') || cat.includes('invoice')) return 'finance';
+      return 'generic';
+    }
+
+    function isSelfEntity(node) {
+      if (node.kind !== 'entity') return false;
+      const lbl = (node.label || '').toLowerCase().trim();
+      return SELF_NORMS.has(lbl) || Boolean(node.is_self);
+    }
+
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      console.error('FileGraph Error:', msg, error);
+      const badge = document.getElementById('stats-badge');
+      if (badge) {
+        badge.style.color = '#ef4444';
+        badge.textContent = 'Error: ' + msg;
+      }
+    };
 
     function init() {
-      allNodes = GRAPH_DATA.nodes || [];
-      allEdges = GRAPH_DATA.edges || [];
+      try {
+        const visLib = window.vis || (typeof vis !== 'undefined' ? vis : null);
+        if (!visLib || !visLib.DataSet || !visLib.Network) {
+          console.error('vis-network library failed to load or missing DataSet/Network');
+          const badge = document.getElementById('stats-badge');
+          if (badge) {
+            badge.style.color = '#ef4444';
+            badge.textContent = 'Error: vis-network failed to load. Check internet or local vis-network.min.js';
+          }
+          return;
+        }
+        activeNodes = new visLib.DataSet();
+        activeEdges = new visLib.DataSet();
+        allNodes = GRAPH_DATA.nodes || [];
+        allEdges = GRAPH_DATA.edges || [];
 
-      document.getElementById('stats-badge').textContent =
-        `${allNodes.length} nodes · ${allEdges.length} edges`;
-
-      buildLegend();
-      setupEventListeners();
-      renderNetwork();
+        buildLegend();
+        setupEventListeners();
+        renderNetwork();
+      } catch (err) {
+        console.error('Initialization error:', err);
+        const badge = document.getElementById('stats-badge');
+        if (badge) {
+          badge.style.color = '#ef4444';
+          badge.textContent = 'Init Error: ' + err.message;
+        }
+      }
     }
 
     function buildLegend() {
       const legendContainer = document.getElementById('legend-chips');
       legendContainer.innerHTML = '';
 
-      const presentGroups = new Set(allNodes.map(n => n.group));
+      // Count occurrences by derived visual group
+      const groupCounts = {};
+      allNodes.forEach(n => {
+        const vg = deriveVisualGroup(n);
+        groupCounts[vg] = (groupCounts[vg] || 0) + 1;
+      });
 
-      presentGroups.forEach(group => {
-        const color = CARD_COLORS[group] || '#64748b';
-        const count = allNodes.filter(n => n.group === group).length;
+      if (groupByFolderEnabled) {
+        groupCounts['folder'] = 5;
+      }
+
+      Object.keys(groupCounts).sort().forEach(group => {
+        const color = VISUAL_COLORS[group] || '#64748b';
+        const count = groupCounts[group];
 
         const chip = document.createElement('div');
         chip.className = 'legend-chip';
@@ -584,75 +741,240 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
-    function getNodeDegree(nodeId) {
-      return allEdges.filter(e => e.from === nodeId || e.to === nodeId).length;
-    }
-
     function applyFilters() {
-      const filteredNodes = allNodes.filter(n => !hiddenGroups.has(n.group));
-      const validNodeIds = new Set(filteredNodes.map(n => n.id));
-
-      const filteredEdges = allEdges.filter(e => {
-        if (!validNodeIds.has(e.from) || !validNodeIds.has(e.to)) return false;
+      // 1. Filter out noisy edges (spurious Today: chains and grade-sheet loops)
+      const validEdges = allEdges.filter(e => {
         if (e.edge_type === 'imports' && !showCodeEnabled) return false;
         if (e.edge_type === 'mentioned_in' && !showAllMentions) return false;
-        if (e.edge_type === 'contains_file') return false; // hidden by default per spec
+        if (e.edge_type === 'contains_file') return false;
+        if (e.edge_type === 'replies_to' && (
+          (e.evidence && e.evidence.includes('Today:')) ||
+          ['R20', 'SEMESTER GRADE SHEET', 'SEE+CIE'].includes(e.evidence)
+        )) return false;
         return true;
       });
 
-      // Prepare nodes with dynamic labels and sizes
+      // 2. Build virtual Folder Hubs if enabled
+      const folderNodes = [];
+      const folderEdges = [];
+      if (groupByFolderEnabled) {
+        const folders = new Map();
+        allNodes.forEach(n => {
+          if (n.kind !== 'doc' || !n.rel_path) return;
+          const parts = n.rel_path.split('/').filter(Boolean);
+          let topFolder = parts[0] || 'Documents';
+          if (parts.length > 1 && ['saketh', 'saibabu', 'rama', 'adithya'].includes(parts[0].toLowerCase())) {
+            topFolder = parts[1];
+          }
+          if (!folders.has(topFolder)) {
+            const folderId = `folder:${topFolder}`;
+            const folderName = topFolder.replace(/_/g, ' ');
+            folders.set(topFolder, folderId);
+            folderNodes.push({
+              id: folderId,
+              label: folderName,
+              subtitle: 'Folder Hub',
+              group: 'folder',
+              kind: 'folder',
+              summary: `Folder cluster for files in ${folderName}`,
+              vGroup: 'folder'
+            });
+          }
+          folderEdges.push({
+            id: `fe-${folders.get(topFolder)}-${n.id}`,
+            from: folders.get(topFolder),
+            to: n.id,
+            edge_type: 'in_folder',
+            arrows: 'to',
+            dashes: true
+          });
+        });
+      }
+
+      // 3. Compute initial visible degree from active edges ONLY
+      const candidateEdges = [...validEdges, ...folderEdges];
+      const visibleDegree = new Map();
+      candidateEdges.forEach(e => {
+        visibleDegree.set(e.from, (visibleDegree.get(e.from) || 0) + 1);
+        visibleDegree.set(e.to, (visibleDegree.get(e.to) || 0) + 1);
+      });
+
+      // 4. Filter nodes (hide self-entities, hidden groups, and 0-degree orphans)
+      const combinedNodes = [
+        ...allNodes.map(n => ({ ...n, vGroup: deriveVisualGroup(n) })),
+        ...folderNodes
+      ];
+
+      // Top 25 filter if active
+      let allowedHubNodeIds = null;
+      if (top25Active) {
+        const candidateHubs = combinedNodes.filter(n => (n.kind === 'entity' || n.kind === 'folder' || n.kind === 'repo') && !hiddenGroups.has(n.vGroup));
+        const hubDegrees = candidateHubs.map(h => ({
+          id: h.id,
+          degree: visibleDegree.get(h.id) || 0
+        }));
+        hubDegrees.sort((a, b) => b.degree - a.degree);
+        const topHubIds = new Set(hubDegrees.slice(0, 25).map(h => h.id));
+        allowedHubNodeIds = new Set(topHubIds);
+        candidateEdges.forEach(e => {
+          if (topHubIds.has(e.from)) allowedHubNodeIds.add(e.to);
+          if (topHubIds.has(e.to)) allowedHubNodeIds.add(e.from);
+        });
+      }
+
+      const filteredNodes = combinedNodes.filter(n => {
+        if (hiddenGroups.has(n.vGroup)) return false;
+        if (isSelfEntity(n) && !showAllMentions) return false;
+        if (top25Active && allowedHubNodeIds && !allowedHubNodeIds.has(n.id)) return false;
+        const deg = visibleDegree.get(n.id) || 0;
+        if (deg === 0 && !showOrphansEnabled) return false;
+        return true;
+      });
+
+      const validNodeIds = new Set(filteredNodes.map(n => n.id));
+      const finalEdges = candidateEdges.filter(e => validNodeIds.has(e.from) && validNodeIds.has(e.to));
+
+      currentFilteredEdges = finalEdges;
+
+      // 5. Recalculate true visible degree after node pruning
+      const finalDegree = new Map();
+      finalEdges.forEach(e => {
+        finalDegree.set(e.from, (finalDegree.get(e.from) || 0) + 1);
+        finalDegree.set(e.to, (finalDegree.get(e.to) || 0) + 1);
+      });
+
+      // 6. Format nodes for vis-network
       const visNodes = filteredNodes.map(n => {
-        const degree = getNodeDegree(n.id);
-        const isHub = degree >= 3;
-        const showLabel = allLabelsEnabled || isHub || (selectedNodeId === n.id);
+        const deg = finalDegree.get(n.id) || 0;
+        const isFolder = n.kind === 'folder';
+        const isEntity = n.kind === 'entity';
+        const isRepo = n.kind === 'repo';
+        const isHub = isFolder || deg >= 3;
 
-        let size = 16;
-        if (n.kind === 'entity') {
-          size = Math.min(26, Math.max(12, 12 + Math.sqrt(degree) * 3));
-        } else if (n.kind === 'repo') {
-          size = 22;
-        }
+        const rawLabel = n.label || '';
+        const displayLabel = (!rawLabel || rawLabel.toLowerCase() === 'unknown')
+          ? (n.rel_path ? n.rel_path.split('/').pop() : 'Document')
+          : rawLabel;
 
-        const color = CARD_COLORS[n.group] || '#64748b';
+        const color = VISUAL_COLORS[n.vGroup] || '#64748b';
 
         return {
           id: n.id,
-          label: showLabel ? n.label : '',
-          fullLabel: n.label,
-          title: n.label + (n.subtitle ? ' — ' + n.subtitle : ''),
-          shape: n.kind === 'entity' ? 'diamond' : (n.kind === 'repo' ? 'box' : 'dot'),
-          size: size,
+          label: (allLabelsEnabled || isHub || selectedNodeId === n.id) ? displayLabel : '',
+          fullLabel: displayLabel,
+          title: displayLabel + (n.subtitle ? ' — ' + n.subtitle : '') + (n.rel_path ? ' — ' + n.rel_path : ''),
+          shape: isFolder ? 'box' : (isEntity ? 'diamond' : (isRepo ? 'box' : 'dot')),
+          size: isFolder ? 24 : (isEntity ? Math.min(26, Math.max(12, 12 + Math.sqrt(deg) * 3)) : 15),
           color: {
             background: color,
-            border: color,
+            border: isFolder ? '#2563eb' : color,
             highlight: { background: '#ffffff', border: color },
             hover: { background: '#ffffff', border: color }
           },
-          font: { color: document.body.classList.contains('light') ? '#0f172a' : '#f8fafc', face: 'Inter', size: 12 },
+          font: {
+            color: document.body.classList.contains('light') ? '#0f172a' : '#f8fafc',
+            face: 'Inter',
+            size: isFolder ? 13 : 11,
+            bold: isFolder
+          },
           raw: n
         };
       });
 
-      const visEdges = filteredEdges.map(e => ({
-        id: e.id || `${e.from}-${e.to}-${e.edge_type}`,
+      const visEdges = finalEdges.map((e, idx) => ({
+        id: e.id || `edge-${e.from}-${e.to}-${e.edge_type}-${idx}`,
         from: e.from,
         to: e.to,
-        label: allLabelsEnabled ? e.edge_type : '',
+        label: allLabelsEnabled && e.edge_type !== 'in_folder' ? e.edge_type : '',
         title: `${e.edge_type}${e.evidence ? ': ' + e.evidence : ''}`,
         arrows: e.arrows || 'to',
-        color: { color: 'rgba(148, 163, 184, 0.4)', highlight: '#6366f1', hover: '#a5b4fc' },
-        smooth: { type: 'curvedCW', roundness: 0.15 },
+        dashes: e.edge_type === 'in_folder' || Boolean(e.dashes),
+        color: {
+          color: e.edge_type === 'in_folder'
+            ? (document.body.classList.contains('light') ? 'rgba(59, 130, 246, 0.35)' : 'rgba(59, 130, 246, 0.3)')
+            : (document.body.classList.contains('light') ? 'rgba(100, 116, 139, 0.45)' : 'rgba(148, 163, 184, 0.45)'),
+          highlight: '#6366f1',
+          hover: '#a5b4fc'
+        },
+        smooth: e.edge_type === 'in_folder' ? false : { type: 'curvedCW', roundness: 0.15 },
         raw: e
       }));
 
+      // Safely deduplicate nodes and edges before adding to DataSets to prevent crashes
       activeNodes.clear();
-      activeNodes.add(visNodes);
+      const seenNodeIds = new Set();
+      const uniqueVisNodes = visNodes.filter(n => {
+        if (seenNodeIds.has(n.id)) return false;
+        seenNodeIds.add(n.id);
+        return true;
+      });
+      activeNodes.add(uniqueVisNodes);
+
       activeEdges.clear();
-      activeEdges.add(visEdges);
+      const seenEdgeIds = new Set();
+      const uniqueVisEdges = visEdges.filter(e => {
+        if (seenEdgeIds.has(e.id)) return false;
+        seenEdgeIds.add(e.id);
+        return true;
+      });
+      activeEdges.add(uniqueVisEdges);
+
+      document.getElementById('stats-badge').textContent =
+        `${uniqueVisNodes.length} nodes · ${uniqueVisEdges.length} edges`;
 
       if (network) {
         network.setData({ nodes: activeNodes, edges: activeEdges });
       }
+    }
+
+    function setNetworkLayout(hierarchical) {
+      hierarchicalEnabled = hierarchical;
+      const btnTree = document.getElementById('btn-layout-tree');
+      if (btnTree) btnTree.classList.toggle('active', hierarchicalEnabled);
+
+      if (hierarchicalEnabled) {
+        network.setOptions({
+          layout: {
+            hierarchical: {
+              enabled: true,
+              direction: 'LR',
+              sortMethod: 'directed',
+              levelSeparation: 260,
+              nodeSpacing: 100,
+              treeSpacing: 120
+            }
+          },
+          physics: {
+            hierarchicalRepulsion: {
+              centralGravity: 0.0,
+              springLength: 120,
+              springConstant: 0.01,
+              nodeDistance: 130,
+              damping: 0.09
+            }
+          }
+        });
+      } else {
+        network.setOptions({
+          layout: {
+            hierarchical: {
+              enabled: false
+            }
+          },
+          physics: {
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+              springLength: 140,
+              gravitationalConstant: -70,
+              avoidOverlap: 0.9,
+              centralGravity: 0.008,
+              damping: 0.4
+            },
+            stabilization: { iterations: 120, updateInterval: 25 }
+          }
+        });
+      }
+      network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
     }
 
     function renderNetwork() {
@@ -678,7 +1000,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
             centralGravity: 0.008,
             damping: 0.4
           },
-          stabilization: { iterations: 120, updateInterval: 25 }
+          stabilization: false
         },
         interaction: {
           hover: true,
@@ -687,7 +1009,16 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
         }
       };
 
-      network = new vis.Network(container, { nodes: activeNodes, edges: activeEdges }, options);
+      const visLib = window.vis || (typeof vis !== 'undefined' ? vis : null);
+      const NetworkClass = (visLib && visLib.Network) || vis.Network;
+      network = new NetworkClass(container, { nodes: activeNodes, edges: activeEdges }, options);
+      setTimeout(() => {
+        if (network) {
+          network.setSize('100vw', '100vh');
+          network.redraw();
+          network.fit();
+        }
+      }, 100);
 
       network.on('click', params => {
         if (params.nodes.length > 0) {
@@ -700,9 +1031,10 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       network.on('zoom', params => {
         if (!allLabelsEnabled) {
           const zoom = network.getScale();
-          const showAll = zoom >= 1.6;
+          const showAll = zoom >= 1.5;
           activeNodes.forEach(n => {
-            const shouldShow = showAll || getNodeDegree(n.id) >= 3 || (selectedNodeId === n.id);
+            const deg = currentFilteredEdges.filter(e => e.from === n.id || e.to === n.id).length;
+            const shouldShow = showAll || deg >= 3 || (selectedNodeId === n.id);
             if ((n.label !== '') !== shouldShow) {
               activeNodes.update({ id: n.id, label: shouldShow ? n.fullLabel : '' });
             }
@@ -713,64 +1045,64 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
 
     function selectNode(nodeId) {
       selectedNodeId = nodeId;
-      const node = allNodes.find(n => n.id === nodeId);
-      if (!node) return;
+      const visNode = activeNodes.get(nodeId);
+      const rawNode = visNode ? visNode.raw : allNodes.find(n => n.id === nodeId);
+      if (!rawNode) return;
 
-      openDrawer(node);
+      openDrawer(rawNode);
 
       if (focusModeEnabled) {
-        applyFocus(nodeId);
+        const connectedNodeIds = new Set(network.getConnectedNodes(nodeId));
+        connectedNodeIds.add(nodeId);
+
+        activeNodes.forEach(n => {
+          const isConnected = connectedNodeIds.has(n.id);
+          const color = VISUAL_COLORS[n.raw ? n.raw.vGroup : 'generic'] || '#64748b';
+          activeNodes.update({
+            id: n.id,
+            color: isConnected ? { background: color, border: color } : { background: 'rgba(100, 116, 139, 0.15)', border: 'rgba(100, 116, 139, 0.15)' },
+            font: { color: isConnected ? (document.body.classList.contains('light') ? '#0f172a' : '#f8fafc') : 'rgba(148, 163, 184, 0.2)' }
+          });
+        });
       }
     }
 
     function deselectNode() {
       selectedNodeId = null;
       closeDrawer();
+
       if (focusModeEnabled) {
-        resetFocus();
-      }
-    }
-
-    function applyFocus(nodeId) {
-      const connectedNodeIds = new Set(network.getConnectedNodes(nodeId));
-      connectedNodeIds.add(nodeId);
-
-      const updates = [];
-      activeNodes.forEach(n => {
-        const isConn = connectedNodeIds.has(n.id);
-        updates.push({
-          id: n.id,
-          opacity: isConn ? 1 : 0.15
+        activeNodes.forEach(n => {
+          const color = VISUAL_COLORS[n.raw ? n.raw.vGroup : 'generic'] || '#64748b';
+          activeNodes.update({
+            id: n.id,
+            color: { background: color, border: color },
+            font: { color: document.body.classList.contains('light') ? '#0f172a' : '#f8fafc' }
+          });
         });
-      });
-      activeNodes.update(updates);
-    }
-
-    function resetFocus() {
-      const updates = [];
-      activeNodes.forEach(n => {
-        updates.push({ id: n.id, opacity: 1 });
-      });
-      activeNodes.update(updates);
+      }
     }
 
     function openDrawer(node) {
       const drawer = document.getElementById('drawer');
-      const badges = document.getElementById('drawer-badges');
-      const title = document.getElementById('drawer-title');
+      const badgesContainer = document.getElementById('drawer-badges');
+      const titleElem = document.getElementById('drawer-title');
       const body = document.getElementById('drawer-body');
 
-      const color = CARD_COLORS[node.group] || '#64748b';
-      badges.innerHTML = `
-        <span class="badge" style="background:${color}22; color:${color}; border:1px solid ${color}66">${node.kind}: ${node.group}</span>
-        ${node.status ? `<span class="badge" style="background:rgba(255,255,255,0.1); color:var(--text)">${node.status}</span>` : ''}
-        ${node.confidence ? `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc">${node.confidence}</span>` : ''}
+      const vGroup = node.vGroup || deriveVisualGroup(node);
+      const groupColor = VISUAL_COLORS[vGroup] || '#64748b';
+
+      badgesContainer.innerHTML = `
+        <span class="badge" style="background:${groupColor}; color:#ffffff">${vGroup}</span>
+        ${node.category ? `<span class="badge" style="background:rgba(255,255,255,0.1); color:var(--text)">${escapeHtml(node.category)}</span>` : ''}
+        ${node.status ? `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc">${escapeHtml(node.status)}</span>` : ''}
       `;
 
-      title.textContent = node.label;
+      titleElem.textContent = node.label || 'Document';
 
       let html = '';
 
+      // Summary
       if (node.summary) {
         html += `
           <div>
@@ -780,14 +1112,46 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
         `;
       }
 
-      // Meta Table
+      // Entities Section (Primary & Secondary Entities)
+      if (node.entities && node.entities.length > 0) {
+        html += `<div><div class="section-title">Entities & Parties</div><div class="entity-stack">`;
+        node.entities.forEach(ent => {
+          const isPrimary = ent.role === 'primary' || ent.role === 'holder' || ent.role === 'student';
+          const isSecondary = ent.role === 'secondary' || ent.role === 'parent' || ent.role === 'father' || ent.role === 'mother';
+          const isOrg = ent.kind === 'organization' || ent.role === 'issuer';
+
+          const cardClass = isPrimary ? 'primary' : (isSecondary ? 'secondary' : '');
+          const badgeClass = isPrimary ? 'role-primary' : (isSecondary ? 'role-secondary' : (isOrg ? 'role-org' : 'role-other'));
+          const roleDisplay = isPrimary ? 'Primary' : (isSecondary ? (ent.role === 'parent' ? 'Secondary (Parent)' : 'Secondary') : (ent.role || ent.kind));
+
+          html += `
+            <div class="entity-card ${cardClass}">
+              <span><strong>${escapeHtml(ent.name)}</strong></span>
+              <span class="entity-role-badge ${badgeClass}">${escapeHtml(roleDisplay)}</span>
+            </div>
+          `;
+        });
+        html += `</div></div>`;
+      } else if (node.main_entity) {
+        html += `
+          <div>
+            <div class="section-title">Main Entity</div>
+            <div class="entity-card primary">
+              <span><strong>${escapeHtml(node.main_entity)}</strong></span>
+              <span class="entity-role-badge role-primary">Primary</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // Details Table
       html += `<div><div class="section-title">Details</div><table class="meta-table">`;
       if (node.main_date) html += `<tr><td>Date</td><td>${escapeHtml(node.main_date)}</td></tr>`;
-      if (node.main_entity) html += `<tr><td>Main Entity</td><td>${escapeHtml(node.main_entity)}</td></tr>`;
       if (node.rel_path) html += `<tr><td>Relative Path</td><td><code>${escapeHtml(node.rel_path)}</code></td></tr>`;
+      if (node.confidence !== null && node.confidence !== undefined) html += `<tr><td>Confidence</td><td>${Math.round(node.confidence * 100)}%</td></tr>`;
       html += `</table></div>`;
 
-      // Facts
+      // Facts Table
       if (node.facts && Object.keys(node.facts).length > 0) {
         html += `<div><div class="section-title">Key Facts</div><table class="meta-table">`;
         for (const [k, v] of Object.entries(node.facts)) {
@@ -797,15 +1161,15 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       }
 
       // Connected Nodes
-      const connectedEdges = allEdges.filter(e => e.from === node.id || e.to === node.id);
+      const connectedEdges = currentFilteredEdges.filter(e => e.from === node.id || e.to === node.id);
       if (connectedEdges.length > 0) {
-        html += `<div><div class="section-title">Connected Items (${connectedEdges.length})</div><ul class="connected-list">`;
+        html += `<div><div class="section-title">Connected Items (${connectedEdges.length})</div><ul class="connected-list" id="drawer-connected-list">`;
         connectedEdges.forEach(e => {
           const targetId = e.from === node.id ? e.to : e.from;
-          const targetNode = allNodes.find(n => n.id === targetId);
+          const targetNode = allNodes.find(n => n.id === targetId) || (targetId.toString().startsWith('folder:') ? { label: targetId.replace('folder:', '').replace(/_/g, ' ') } : null);
           if (targetNode) {
             html += `
-              <li class="connected-item" onclick="selectNode(${targetId}); network.focus(${targetId}, {scale:1.2, animation:true})">
+              <li class="connected-item" data-target-id="${targetId}">
                 <span>${escapeHtml(targetNode.label)}</span>
                 <span class="connected-rel">${escapeHtml(e.edge_type)}</span>
               </li>
@@ -877,7 +1241,7 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
         searchResults.innerHTML = matches.map(m => `
           <div class="search-item" data-id="${m.id}">
             <span>${escapeHtml(m.label)}</span>
-            <span style="font-size:10px; color:var(--text-muted)">${m.group}</span>
+            <span style="font-size:10px; color:var(--text-muted)">${m.group || m.kind}</span>
           </div>
         `).join('');
         searchResults.style.display = 'block';
@@ -886,46 +1250,67 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
       searchResults.addEventListener('click', e => {
         const item = e.target.closest('.search-item');
         if (item) {
-          const id = Number(item.dataset.id);
+          const id = Number(item.dataset.id) || item.dataset.id;
           searchResults.style.display = 'none';
           searchInput.value = '';
+          network.focus(id, { scale: 1.2, animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
           selectNode(id);
-          network.focus(id, { scale: 1.4, animation: true });
         }
       });
 
-      document.addEventListener('click', e => {
-        if (!e.target.closest('.search-wrapper')) {
-          searchResults.style.display = 'none';
-        }
-      });
+      // Folder Hubs toggle
+      const btnGroupFolder = document.getElementById('btn-group-folder');
+      if (btnGroupFolder) {
+        btnGroupFolder.classList.toggle('active', groupByFolderEnabled);
+        btnGroupFolder.addEventListener('click', () => {
+          groupByFolderEnabled = !groupByFolderEnabled;
+          btnGroupFolder.classList.toggle('active', groupByFolderEnabled);
+          applyFilters();
+        });
+      }
 
-      // Toggles
+      // Hierarchical Tree toggle
+      const btnLayoutTree = document.getElementById('btn-layout-tree');
+      if (btnLayoutTree) {
+        btnLayoutTree.addEventListener('click', () => {
+          setNetworkLayout(!hierarchicalEnabled);
+        });
+      }
+
+      // Labels toggle
       const btnLabels = document.getElementById('btn-labels');
-      btnLabels.addEventListener('click', () => {
-        allLabelsEnabled = !allLabelsEnabled;
+      if (btnLabels) {
         btnLabels.classList.toggle('active', allLabelsEnabled);
-        applyFilters();
-      });
+        btnLabels.addEventListener('click', () => {
+          allLabelsEnabled = !allLabelsEnabled;
+          btnLabels.classList.toggle('active', allLabelsEnabled);
+          applyFilters();
+        });
+      }
 
+      // Focus mode
       const btnFocus = document.getElementById('btn-focus');
-      btnFocus.addEventListener('click', () => {
-        focusModeEnabled = !focusModeEnabled;
+      if (btnFocus) {
         btnFocus.classList.toggle('active', focusModeEnabled);
-        if (focusModeEnabled && selectedNodeId) {
-          applyFocus(selectedNodeId);
-        } else {
-          resetFocus();
-        }
-      });
+        btnFocus.addEventListener('click', () => {
+          focusModeEnabled = !focusModeEnabled;
+          btnFocus.classList.toggle('active', focusModeEnabled);
+          if (selectedNodeId) selectNode(selectedNodeId);
+        });
+      }
 
-      const btnCode = document.getElementById('btn-code');
-      btnCode.addEventListener('click', () => {
-        showCodeEnabled = !showCodeEnabled;
-        btnCode.classList.toggle('active', showCodeEnabled);
-        applyFilters();
-      });
+      // Orphans toggle
+      const btnOrphans = document.getElementById('btn-orphans');
+      if (btnOrphans) {
+        btnOrphans.classList.toggle('active', showOrphansEnabled);
+        btnOrphans.addEventListener('click', () => {
+          showOrphansEnabled = !showOrphansEnabled;
+          btnOrphans.classList.toggle('active', showOrphansEnabled);
+          applyFilters();
+        });
+      }
 
+      // Mentions toggle
       const btnMentions = document.getElementById('btn-mentions');
       btnMentions.addEventListener('click', () => {
         showAllMentions = !showAllMentions;
@@ -933,6 +1318,18 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
         applyFilters();
       });
 
+      // Top Hubs toggle
+      const btnTop25 = document.getElementById('btn-top25');
+      if (btnTop25) {
+        btnTop25.addEventListener('click', () => {
+          top25Active = !top25Active;
+          btnTop25.classList.toggle('active', top25Active);
+          document.getElementById('top25-text').textContent = top25Active ? 'Top Hubs' : 'All Nodes';
+          applyFilters();
+        });
+      }
+
+      // Fit
       document.getElementById('btn-fit').addEventListener('click', () => {
         network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
       });
@@ -946,10 +1343,26 @@ GRAPH_HTML_TEMPLATE = """<!DOCTYPE html>
         applyFilters();
       });
 
+      // Drawer close
       document.getElementById('btn-close-drawer').addEventListener('click', deselectNode);
+
+      // Event delegation for drawer connected list
+      const drawerBody = document.getElementById('drawer-body');
+      drawerBody.addEventListener('click', e => {
+        const item = e.target.closest('.connected-item');
+        if (item && item.dataset.targetId) {
+          const targetId = Number(item.dataset.targetId) || item.dataset.targetId;
+          network.focus(targetId, { scale: 1.2, animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+          selectNode(targetId);
+        }
+      });
     }
 
-    window.addEventListener('DOMContentLoaded', init);
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
   </script>
 </body>
 </html>

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import datetime
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -14,37 +16,75 @@ from filegraph.cards import Card, Registry, compile_tool, normalize_fact_key, sy
 from filegraph.config import Settings
 from filegraph.db import connect, now
 from filegraph.inputs import build_blocks
-from filegraph.llm import call_tool, model_for_policy
+from filegraph.llm import call_tool, model_for_policy, supports_vision
 from filegraph.router import route
 
+_FAKE_LLM = os.environ.get("FG_FAKE_LLM", "0") == "1"
 
-def _clean_date(d_str: str | None) -> tuple[str | None, str | None, str]:
+
+def _clean_date(d_str: str | None, quote: str | None = None) -> tuple[str | None, str | None, str]:
     """Clean date string into (ISO_date, reason_if_any, basis).
 
     YYYY-MM -> YYYY-MM-01 + reason + basis='partial'
     YYYY-MM-DD -> YYYY-MM-DD + basis='stated'
     invalid -> (None, reason, 'stated')
+    Rejects Today header dates and validates calendar day/month ranges.
+    Normalizes academic/fiscal year ranges like '2021-22' to '2021-01-01'.
     """
     if not d_str:
         return None, None, "stated"
 
+    if quote and ("today:" in quote.lower() or quote.strip().lower().startswith("today")):
+        return None, "rejected date extracted from Today header", "stated"
+
     s = d_str.strip()
+    if s.lower().startswith("today"):
+        return None, "rejected date extracted from Today header", "stated"
+
+    # Academic year ranges: 2021-22 or 2021-2022
+    m_acad = re.match(r"^(\d{4})[-/](\d{2}|\d{4})$", s)
+    if m_acad:
+        yr1 = int(m_acad.group(1))
+        yr2_str = m_acad.group(2)
+        yr2 = int(yr2_str) if len(yr2_str) == 4 else (yr1 // 100 * 100 + int(yr2_str))
+        if yr2 in (yr1 + 1, yr1):
+            return f"{yr1:04d}-01-01", f"academic year range {s} normalized to start of year", "partial"
+
     # YYYY-MM-DD
     if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
-        return s, None, "stated"
+        try:
+            dt = datetime.date.fromisoformat(s)
+            return dt.isoformat(), None, "stated"
+        except ValueError:
+            return None, f"invalid calendar date: '{s}'", "stated"
 
     # YYYY-MM
-    if re.match(r"^\d{4}-\d{2}$", s):
-        return f"{s}-01", "only month and year known", "partial"
+    m_ym = re.match(r"^(\d{4})-(\d{2})$", s)
+    if m_ym:
+        yr = int(m_ym.group(1))
+        mo = int(m_ym.group(2))
+        if 1 <= mo <= 12:
+            return f"{yr:04d}-{mo:02d}-01", "only month and year known", "partial"
+        else:
+            return None, f"invalid month in date: '{s}'", "stated"
 
     # DD/MM/YYYY or MM/DD/YYYY fallback
     m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$", s)
     if m:
         p1, p2, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        # Assuming DD/MM/YYYY if p1 > 12
+        candidate_dates = []
         if p1 > 12:
-            return f"{yr:04d}-{p2:02d}-{p1:02d}", None, "inferred"
-        return f"{yr:04d}-{p1:02d}-{p2:02d}", None, "inferred"
+            candidate_dates.append((yr, p2, p1))
+        else:
+            candidate_dates.append((yr, p1, p2))
+            candidate_dates.append((yr, p2, p1))
+
+        for y, m_val, d_val in candidate_dates:
+            try:
+                dt = datetime.date(y, m_val, d_val)
+                return dt.isoformat(), None, "inferred"
+            except ValueError:
+                continue
 
     return None, f"invalid date: '{d_str}'", "stated"
 
@@ -88,6 +128,14 @@ def repair_and_validate(data: dict[str, Any], tool_schema: dict[str, Any]) -> tu
     reasons: list[str] = []
     clean: dict[str, Any] = {}
 
+    # Alias type/doc_type -> category if category is in schema and missing in data
+    if "category" in props and "category" not in data:
+        for alias in ("type", "doc_type", "document_type", "classification"):
+            if alias in data and data[alias]:
+                data["category"] = data[alias]
+                reasons.append(f"schema repair: mapped '{alias}' -> 'category'")
+                break
+
     for k, v in data.items():
         if k not in props:
             reasons.append(f"schema repair: dropped unknown key '{k}'")
@@ -96,7 +144,7 @@ def repair_and_validate(data: dict[str, Any], tool_schema: dict[str, Any]) -> tu
         p_schema = props[k]
         allowed_enum = p_schema.get("enum")
         if allowed_enum and v not in allowed_enum:
-            fallback = "other" if "other" in allowed_enum else allowed_enum[0]
+            fallback = "other" if "other" in allowed_enum else ("unknown" if "unknown" in allowed_enum else allowed_enum[0])
             clean[k] = fallback
             reasons.append(f"schema repair: invalid enum value '{v}' for '{k}' replaced with '{fallback}'")
             continue
@@ -105,17 +153,22 @@ def repair_and_validate(data: dict[str, Any], tool_schema: dict[str, Any]) -> tu
 
     # Ensure required fields have valid defaults
     for req in schema.get("required", []):
-        if req not in clean or clean[req] is None:
+        if req not in clean or clean[req] is None or (isinstance(clean[req], str) and not clean[req].strip()):
             p_schema = props.get(req, {})
             if "enum" in p_schema:
-                clean[req] = p_schema["enum"][0]
+                allowed = p_schema["enum"]
+                fallback = "other" if "other" in allowed else ("unknown" if "unknown" in allowed else allowed[0])
+                clean[req] = fallback
+                reasons.append(f"schema repair: provided default '{fallback}' for missing required '{req}'")
             elif p_schema.get("type") == "string":
                 clean[req] = "unknown"
+                reasons.append(f"schema repair: provided default for missing required '{req}'")
             elif p_schema.get("type") == "array":
                 clean[req] = []
+                reasons.append(f"schema repair: provided default for missing required '{req}'")
             elif p_schema.get("type") == "object":
                 clean[req] = {}
-            reasons.append(f"schema repair: provided default for missing required '{req}'")
+                reasons.append(f"schema repair: provided default for missing required '{req}'")
 
     return clean, reasons
 
@@ -138,12 +191,26 @@ def materialize(
         review_reasons.extend(forced_reasons)
     review_reasons.extend(repair_reasons)
 
+    # Validate and repair title and summary
+    title = data.get("title")
+    summary = data.get("summary")
+    if not title or title.strip().lower() in ("unknown", "untitled", ""):
+        stem = frow["filename"].rsplit(".", 1)[0].replace("_", " ").replace("-", " ")
+        data["title"] = stem
+        title = stem
+        review_reasons.append(f"schema repair: title repaired from filename '{stem}'")
+
+    if not summary or summary.strip().lower() in ("unknown", ""):
+        data["summary"] = f"Document: {data.get('title') or frow['filename']}"
+        summary = data["summary"]
+        review_reasons.append("schema repair: summary generated from title")
+
     # Clean dates
     cleaned_dates: list[dict[str, Any]] = []
     for d in data.get("dates", []):
         if not isinstance(d, dict):
             continue
-        c_date, d_reason, basis_override = _clean_date(d.get("date"))
+        c_date, d_reason, basis_override = _clean_date(d.get("date"), quote=str(d.get("quote", "")))
         if d_reason:
             review_reasons.append(f"{d.get('label', 'date')} date: {d_reason}")
         if not c_date:
@@ -182,26 +249,57 @@ def materialize(
         main_date = cleaned_dates[0]["date"]
         main_date_label = cleaned_dates[0]["label"]
 
-    # Pick main_entity (never self entity)
-    self_names = {n.lower().strip() for n in settings.me.names + settings.me.organizations if n}
+    # Pick main_entity (never self entity or user's family members)
+    from filegraph.link import norm_key
+    self_person_keys = {norm_key(n, "person") for n in settings.me.names if n}
+    self_org_keys = {norm_key(o, "organization") for o in settings.me.organizations if o}
+    all_self_keys = self_person_keys | self_org_keys
+
+    def _is_self_or_family(name_str: str) -> bool:
+        if not name_str:
+            return True
+        nk_p = norm_key(name_str, "person")
+        nk_o = norm_key(name_str, "organization")
+        if nk_p in all_self_keys or nk_o in all_self_keys:
+            return True
+        for sn in settings.me.names + settings.me.organizations:
+            if sn and sn.lower() in name_str.lower():
+                return True
+        return False
 
     raw_main = data.get("main_entity")
     main_entity_name = None
-    if raw_main and raw_main.lower().strip() not in self_names:
+    if raw_main and not _is_self_or_family(raw_main):
         main_entity_name = raw_main.strip()
 
     entities_list = data.get("entities", [])
     if not main_entity_name and entities_list:
-        target_role = card.main_entity.get("role")
+        # Priority 1: issuer/provider/counterparty/organization
         for ent in entities_list:
             if not isinstance(ent, dict):
                 continue
             ename = ent.get("name", "").strip()
-            erole = ent.get("role")
-            if ename and ename.lower() not in self_names:
-                if not target_role or erole == target_role:
-                    main_entity_name = ename
-                    break
+            erole = (ent.get("role") or "").lower()
+            ekind = ent.get("kind", "")
+            if not ename or _is_self_or_family(ename):
+                continue
+            if erole in ("issuer", "provider", "counterparty", "bank", "insurer", "company", "employer", "landlord", "author") or ekind == "organization":
+                main_entity_name = ename
+                break
+
+        # Priority 2: any non-self non-family entity
+        if not main_entity_name:
+            for ent in entities_list:
+                if not isinstance(ent, dict):
+                    continue
+                ename = ent.get("name", "").strip()
+                erole = (ent.get("role") or "").lower()
+                if not ename or _is_self_or_family(ename):
+                    continue
+                if erole in ("father", "mother", "parent", "holder", "student", "applicant", "patient", "employee"):
+                    continue
+                main_entity_name = ename
+                break
 
     # Apply review rules
     rules = card.review_rules
@@ -373,6 +471,31 @@ def materialize_deterministic(
             (file_id, filename, now()),
         )
 
+    conn.execute("UPDATE files SET tier = 2 WHERE id = ?", (file_id,))
+
+
+def materialize_stub(
+    conn: Any,
+    file_id: int,
+    card_type: str,
+    frow: Any,
+    reason: str = "scanned file skipped: model lacks vision",
+) -> None:
+    """Materialize stub card for scanned documents when model has no vision (Section 11.3)."""
+    filename = frow["filename"]
+    conn.execute("DELETE FROM documents WHERE file_id = ?", (file_id,))
+    conn.execute("DELETE FROM doc_dates WHERE file_id = ?", (file_id,))
+    conn.execute("DELETE FROM doc_facts WHERE file_id = ?", (file_id,))
+    conn.execute(
+        """
+        INSERT INTO documents (
+            file_id, card_type, card_version, category, title, summary, status,
+            confidence, needs_review, review_reasons, suggested_type, extras, refs, model, extracted_at
+        ) VALUES (?, ?, 1, 'other', ?, 'Scanned document skipped because extraction model lacks vision capability.', 'unknown',
+                 'low', 1, ?, 'scanned_document', '{}', '[]', 'stub', ?)
+        """,
+        (file_id, card_type, filename, json.dumps([reason]), now()),
+    )
     conn.execute("UPDATE files SET tier = 2 WHERE id = ?", (file_id,))
 
 
@@ -556,6 +679,19 @@ def extract_sync(
         # Select model
         policy = frow["llm_policy"] or "cloud"
         model_key = model_override or model_for_policy(policy, "extract")
+
+        # Check if scanned document or image with 0 text chars and model lacks vision
+        text_chars_val = 0
+        p_row = conn.execute("SELECT SUM(LENGTH(text)) as tc FROM pages WHERE file_id = ?", (frow["id"],)).fetchone()
+        if p_row and p_row["tc"]:
+            text_chars_val = p_row["tc"]
+
+        is_img_file = bool(frow["ext"] and frow["ext"].lower() in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"))
+        if (frow["is_scanned"] == 1 or is_img_file) and text_chars_val == 0 and not supports_vision(model_key):
+            materialize_stub(conn, frow["id"], card.name, frow, reason="scanned file skipped: model lacks vision")
+            stats["deterministic"] += 1
+            continue
+
         todo_files.append((frow, card, how, model_key))
         if limit is not None and len(todo_files) >= limit:
             break

@@ -160,6 +160,11 @@ def walk_root(
                 dirnames.remove(d)
                 continue
 
+            # Check deny rules for directories
+            if deny_spec.match_file(rel_d) or deny_spec.match_file(f"{d}/") or is_denied(rel_d, d, spec=deny_spec):
+                dirnames.remove(d)
+                continue
+
             # Check ancestor .gitignore specs
             ignored_by_gi = False
             for gi_dir_str, gi_spec in gitignore_specs.items():

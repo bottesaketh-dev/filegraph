@@ -126,32 +126,6 @@
   },
   {
     "tool": "record_card",
-    "match": "Master Services Agreement",
-    "args": {
-      "category": "agreement",
-      "title": "Harborline Events - Acme Facility Services - MSA (2023)",
-      "summary": "Master Services Agreement between Harborline Events LLC and Acme Facility Services Inc.",
-      "status": "executed",
-      "suggested_type": "master_services_agreement",
-      "confidence": "high",
-      "entities": [
-        {"name": "Harborline Events LLC", "kind": "organization", "role": "client"},
-        {"name": "Acme Facility Services Inc.", "kind": "organization", "role": "provider"}
-      ],
-      "main_entity": "Acme Facility Services Inc.",
-      "dates": [
-        {"label": "effective", "date": "2023-03-01", "basis": "stated", "quote": "effective as of March 1, 2023", "page": 1},
-        {"label": "expires", "date": "2026-03-01", "basis": "stated", "quote": "through March 1, 2026", "page": 1}
-      ],
-      "facts": [
-        {"key": "governing_law", "value": "Delaware", "quote": "Governing Law: Delaware.", "page": 1}
-      ],
-      "references": [],
-      "review_reasons": []
-    }
-  },
-  {
-    "tool": "record_card",
     "match": "Amendment No. 1",
     "args": {
       "category": "amendment",
@@ -189,6 +163,98 @@
         }
       ],
       "review_reasons": []
+    }
+  },
+  {
+    "tool": "record_card",
+    "match": "Master Services Agreement",
+    "args": {
+      "category": "agreement",
+      "title": "Harborline Events - Acme Facility Services - MSA (2023)",
+      "summary": "Master Services Agreement between Harborline Events LLC and Acme Facility Services Inc.",
+      "status": "executed",
+      "suggested_type": "master_services_agreement",
+      "confidence": "high",
+      "entities": [
+        {"name": "Harborline Events LLC", "kind": "organization", "role": "client"},
+        {"name": "Acme Facility Services Inc.", "kind": "organization", "role": "provider"}
+      ],
+      "main_entity": "Acme Facility Services Inc.",
+      "dates": [
+        {"label": "effective", "date": "2023-03-01", "basis": "stated", "quote": "effective as of March 1, 2023", "page": 1},
+        {"label": "expires", "date": "2026-03-01", "basis": "stated", "quote": "through March 1, 2026", "page": 1}
+      ],
+      "facts": [
+        {"key": "governing_law", "value": "Delaware", "quote": "Governing Law: Delaware.", "page": 1}
+      ],
+      "references": [],
+      "review_reasons": []
+    }
+  },
+  {
+    "tool": "draft_card",
+    "match": "",
+    "args": {
+      "name": "insurance_policy",
+      "description": "Insurance policy documents covering vehicle, home, health, or life.",
+      "categories": ["auto", "health", "home", "life", "liability"],
+      "statuses": ["active", "expired", "cancelled"],
+      "main_entity": {
+        "role": "insurer",
+        "kind": "organization"
+      },
+      "main_date": "expires",
+      "date_labels": ["issued", "effective", "expires"],
+      "entity_roles": ["insurer", "insured", "broker"],
+      "preferred_fact_keys": ["policy_number", "premium_amount", "coverage_limit", "deductible"],
+      "fact_key_aliases": {
+        "policy_no": "policy_number"
+      },
+      "fields": {
+        "policy_number": {
+          "type": "string"
+        }
+      },
+      "relations": ["renews", "amends"],
+      "instructions": "Record the insurer as main entity and policy period.",
+      "absorbs": ["insurance_policy", "policy"],
+      "match": {
+        "filename_regex": "(?i)policy|insurance",
+        "keywords_any": ["policy", "insurance", "premium"]
+      }
+    }
+  },
+  {
+    "tool": "choose_folder",
+    "match": "icici",
+    "args": {
+      "folder": "car",
+      "is_new_folder": false,
+      "confidence": 0.95,
+      "reasoning": "ICICI Lombard insurance policies are filed under the car folder.",
+      "alternatives": ["personal"]
+    }
+  },
+  {
+    "tool": "choose_folder",
+    "match": "acme",
+    "args": {
+      "folder": "",
+      "is_new_folder": false,
+      "confidence": 0.9,
+      "reasoning": "Acme contracts and documents are kept in the legal root folder.",
+      "alternatives": ["mail"]
+    }
+  },
+  {
+    "tool": "choose_folder",
+    "match": "",
+    "args": {
+      "folder": "car",
+      "is_new_folder": false,
+      "confidence": 0.85,
+      "reasoning": "Filing into the candidate folder based on entity profile and document type.",
+      "alternatives": ["legal", "personal"]
     }
   }
 ]

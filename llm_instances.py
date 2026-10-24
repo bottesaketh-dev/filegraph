@@ -110,6 +110,7 @@ def build_instances() -> dict[str, dict[str, Any]]:
                 api_key="ollama",
                 base_url="http://localhost:11434/v1",
                 temperature=0,
+                max_tokens=4096,
             ),
             "VISION": is_vision,
         }

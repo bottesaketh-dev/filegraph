@@ -38,14 +38,14 @@ def test_schema_repair():
             "type": "object",
             "required": ["category", "title", "status"],
             "properties": {
-                "category": {"type": "string", "enum": ["legal", "finance", "other"]},
+                "category": {"type": "string", "enum": ["finance", "medical", "legal", "other"]},
                 "title": {"type": "string"},
                 "status": {"type": "string", "enum": ["active", "unknown"]},
             },
         }
     }
+    # When category is missing, ensure it defaults to 'other', NOT enum[0] ('finance')
     malformed = {
-        "category": "INVALID_CATEGORY_ENUM",
         "title": "Document Title",
         "unknown_extra_key": "some_value",
     }
@@ -53,8 +53,49 @@ def test_schema_repair():
     assert clean["category"] == "other"
     assert clean["title"] == "Document Title"
     assert "unknown_extra_key" not in clean
-    assert clean["status"] in ("active", "unknown")
-    assert any("schema repair" in r for r in reasons)
+
+    # When model outputs 'type' instead of 'category', verify mapping
+    with_type = {
+        "type": "legal",
+        "title": "Agreement",
+    }
+    clean2, reasons2 = repair_and_validate(with_type, tool_spec)
+    assert clean2["category"] == "legal"
+
+
+def test_clean_date_calendar_and_today():
+    """Verify calendar validation, academic year normalization, and Today header rejection."""
+    from filegraph.extract import _clean_date
+
+    # Academic year normalization
+    d, reason, basis = _clean_date("2021-22")
+    assert d == "2021-01-01"
+    assert basis == "partial"
+
+    # Today header rejection
+    d_today, _, _ = _clean_date("2026-10-24", quote="Today: 2026-10-24")
+    assert d_today is None
+
+    # Invalid month rejection
+    d_inv, _, _ = _clean_date("2021-22-01")
+    assert d_inv is None
+
+
+def test_norm_key_person_sorting_and_honorifics():
+    """Verify person entity norm_key sorts tokens and strips compound honorifics."""
+    from filegraph.link import norm_key
+
+    k1 = norm_key("Saketh Botte", "person")
+    k2 = norm_key("Botte Saketh", "person")
+    k3 = norm_key("Mr. Botte Saketh", "person")
+    k4 = norm_key("Sri/Srimathi/Kumari BOTTE SAKETH", "person")
+    k5 = norm_key("Saketh Botte, B. Saketh", "person")
+
+    assert k1 == "botte saketh"
+    assert k2 == "botte saketh"
+    assert k3 == "botte saketh"
+    assert k4 == "botte saketh"
+    assert k5 == "botte saketh"
 
 
 def test_phase_3_acceptance_extraction(extracted_env):

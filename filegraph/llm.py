@@ -352,6 +352,7 @@ def call_tool(
         json_instruction = (
             f"\n\nYou MUST record this document by outputting a valid JSON object matching the following schema for '{tool_name}':\n"
             f"```json\n{schema_json}\n```\n"
+            f"Keep your response concise. Include only the top 5 most important facts so that the JSON is complete and never truncated.\n"
             f"Respond ONLY with the JSON object, with no markdown fences or other text."
         )
 
@@ -364,7 +365,7 @@ def call_tool(
         else:
             fallback_messages.append(HumanMessage(content=json_instruction))
 
-        resp = chat.invoke(fallback_messages)
+        resp = chat.invoke(fallback_messages, config={"max_tokens": max_tokens})
         text = resp.content if isinstance(resp.content, str) else str(resp.content)
         args = _parse_json_from_text(text)
         if args is not None:
@@ -386,6 +387,14 @@ def _extract_tool_call(
                 return tc.get("args", {}), usage
         # Return the first tool call if names don't match exactly
         return resp.tool_calls[0].get("args", {}), usage
+
+    # If tool_calls attribute is empty, check if the model wrote JSON or a tool call in text content
+    content = getattr(resp, "content", "")
+    if isinstance(content, str) and content.strip():
+        parsed = _parse_json_from_text(content)
+        if parsed and isinstance(parsed, dict):
+            return parsed, usage
+
     return None, usage
 
 
@@ -400,12 +409,60 @@ def _extract_usage(resp: Any) -> dict:
     return {"input": 0, "output": 0}
 
 
+def _repair_truncated_json(s: str) -> dict | None:
+    """Attempt to repair and parse truncated JSON (e.g. cut off by max_tokens)."""
+    start = s.find("{")
+    if start == -1:
+        return None
+    s = s[start:].strip()
+
+    # Progressively trim incomplete trailing tokens and balance brackets
+    for trim_len in range(0, min(len(s), 600)):
+        sub = s if trim_len == 0 else s[:-trim_len].rstrip()
+        stk = []
+        in_s = False
+        esc = False
+        for c in sub:
+            if esc:
+                esc = False
+                continue
+            if c == "\\":
+                esc = True
+                continue
+            if c == '"':
+                in_s = not in_s
+                continue
+            if not in_s:
+                if c in ("{", "["):
+                    stk.append("}" if c == "{" else "]")
+                elif c in ("}", "]") and stk and stk[-1] == c:
+                    stk.pop()
+
+        cand = sub + ('"' if in_s else "") + "".join(reversed(stk))
+        try:
+            val = json.loads(cand)
+            if isinstance(val, dict):
+                return val
+        except Exception:
+            continue
+    return None
+
+
 def _parse_json_from_text(text: str) -> dict | None:
     """Try to find and parse a JSON object from model text output."""
+    if not text:
+        return None
+
+    # Handle Qwen/Ollama <tool_call> tags
+    tc_match = re.search(r"<tool_call>([\s\S]*?)</tool_call>", text)
+    if tc_match:
+        text = tc_match.group(1)
+
     # Strip markdown code fences
     text = re.sub(r"```(?:json)?\s*", "", text)
     text = re.sub(r"```\s*$", "", text)
     text = text.strip()
+
     # Find the first { ... } block
     start = text.find("{")
     if start == -1:
@@ -420,10 +477,30 @@ def _parse_json_from_text(text: str) -> dict | None:
             if depth == 0:
                 end = i + 1
                 break
-    try:
-        return json.loads(text[start:end])
-    except json.JSONDecodeError:
-        return None
+
+    if depth == 0 and end > start:
+        try:
+            data = json.loads(text[start:end])
+            if isinstance(data, dict):
+                # If wrapped in {name: ..., arguments: {...}}
+                if "arguments" in data and isinstance(data["arguments"], dict):
+                    return data["arguments"]
+                if "parameters" in data and isinstance(data["parameters"], dict):
+                    return data["parameters"]
+                return data
+        except json.JSONDecodeError:
+            pass
+
+    # If direct parse failed or JSON was truncated (depth > 0), attempt repair
+    repaired = _repair_truncated_json(text[start:])
+    if repaired:
+        if "arguments" in repaired and isinstance(repaired["arguments"], dict):
+            return repaired["arguments"]
+        if "parameters" in repaired and isinstance(repaired["parameters"], dict):
+            return repaired["parameters"]
+        return repaired
+
+    return None
 
 
 # ---------------------------------------------------------------------------

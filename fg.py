@@ -288,6 +288,242 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_embed(args: argparse.Namespace) -> int:
+    """Generate embeddings for units and documents."""
+    settings = _load_settings(args)
+
+    from filegraph.db import connect, init_schema, check_schema_version
+    conn = connect(settings.db_path)
+    init_schema(conn)
+    check_schema_version(conn)
+
+    from filegraph.embed import embed_units
+    n = embed_units(conn, settings, root_name=getattr(args, "root", None), rebuild=getattr(args, "rebuild", False))
+    conn.close()
+
+    if not getattr(args, "quiet", False):
+        print(f"Embeddings complete: {n} units embedded.")
+    return 0
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    """Execute hybrid BM25 and vector search."""
+    settings = _load_settings(args)
+
+    from filegraph.db import connect, init_schema, check_schema_version
+    conn = connect(settings.db_path)
+    init_schema(conn)
+    check_schema_version(conn)
+
+    from filegraph.search import hybrid_search
+    results = hybrid_search(
+        conn,
+        query=args.query,
+        limit=getattr(args, "n", 10),
+        kind=getattr(args, "kind", None),
+        root=getattr(args, "root", None),
+        card_type=getattr(args, "card", None),
+        settings=settings,
+    )
+    conn.close()
+
+    if not results:
+        print("No matching files found.")
+        return 0
+
+    for r in results:
+        print(f"[{r['score']:.4f}] {r['path']} ({r['card_type']}) — {r['title']}")
+        if r['snippet']:
+            print(f"  {r['snippet']}")
+        print()
+    return 0
+
+
+def cmd_ask(args: argparse.Namespace) -> int:
+    """Ask a question to the FileGraph agent."""
+    settings = _load_settings(args)
+    from filegraph.agent import Agent
+    agent = Agent(settings, allow_cloud=getattr(args, "allow_cloud", False))
+    ans = agent.ask(args.question, verbose=getattr(args, "verbose", False))
+    print(ans)
+    return 0
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    """Start interactive chat with the FileGraph agent."""
+    settings = _load_settings(args)
+    from filegraph.agent import Agent
+    agent = Agent(settings, allow_cloud=getattr(args, "allow_cloud", False))
+    agent.chat(verbose=getattr(args, "verbose", False), allow_cloud=getattr(args, "allow_cloud", False))
+    return 0
+
+
+def cmd_discover(args: argparse.Namespace) -> int:
+    """Discover frequent document types among generic documents."""
+    settings = _load_settings(args)
+    from filegraph.db import connect
+    conn = connect(settings.db_path)
+    from filegraph.discover import discover, print_discover
+    res = discover(conn, settings, min_count=getattr(args, "min", 10), show_all=getattr(args, "all", False))
+    print_discover(res, min_count=getattr(args, "min", 10))
+    conn.close()
+    return 0
+
+
+def cmd_propose_card(args: argparse.Namespace) -> int:
+    """Propose a new card template for a document type."""
+    settings = _load_settings(args)
+    from filegraph.db import connect
+    conn = connect(settings.db_path)
+    from filegraph.discover import propose_card
+    out_p = propose_card(
+        conn,
+        settings,
+        suggested_type=args.type,
+        samples=getattr(args, "samples", 15),
+        name_override=getattr(args, "name", None),
+    )
+    conn.close()
+    print(f"Proposed card template written to: {out_p}")
+    print(f"\nNext steps:")
+    print(f"  Review {out_p}, then move it to cards/ and run:")
+    print(f"    fg extract --card {out_p.stem} --refresh")
+    return 0
+
+
+def cmd_cards(args: argparse.Namespace) -> int:
+    """List registered card types with document counts."""
+    settings = _load_settings(args)
+    from filegraph.cards import load_registry
+    from filegraph.db import connect
+    conn = connect(settings.db_path)
+    reg = load_registry(settings.cards_dir)
+    from filegraph.discover import list_cards
+    cards = list_cards(reg, conn)
+    conn.close()
+
+    print(f"{'Card':<15} {'Version':<9} {'LLM':<6} {'Docs':<6} {'Description'}")
+    print(f"{'─'*15} {'─'*9} {'─'*6} {'─'*6} {'─'*40}")
+    for c in cards:
+        print(f"{c['name']:<15} v{c['version']:<8} {'yes' if c['llm'] else 'no':<6} {c['count']:<6} {c['description']}")
+    return 0
+
+
+def cmd_repos(args: argparse.Namespace) -> int:
+    """Manage repository metadata (Section 12)."""
+    import json
+    settings = _load_settings(args)
+    from filegraph.db import connect
+    from filegraph.repos import summarize_repo
+
+    conn = connect(settings.db_path)
+    action = getattr(args, "action", "list")
+    if action == "list":
+        rows = conn.execute("SELECT name, rel_path, languages, summary FROM repos").fetchall()
+        print(f"{'Repo':<20} {'Languages':<25} {'Summary'}")
+        print(f"{'─'*20} {'─'*25} {'─'*35}")
+        for r in rows:
+            langs = ", ".join(json.loads(r["languages"] or "[]"))
+            summ = (r["summary"] or "")[:50]
+            print(f"{r['name']:<20} {langs:<25} {summ}")
+    elif action == "summarize":
+        repo_name = getattr(args, "repo", None)
+        if repo_name:
+            summarize_repo(conn, repo_name, settings, refresh=getattr(args, "refresh", False))
+            print(f"Summarized repo '{repo_name}'")
+        else:
+            rows = conn.execute("SELECT name FROM repos").fetchall()
+            for r in rows:
+                summarize_repo(conn, r["name"], settings, refresh=getattr(args, "refresh", False))
+                print(f"Summarized repo '{r['name']}'")
+    conn.close()
+    return 0
+
+
+def cmd_file(args: argparse.Namespace) -> int:
+    """Suggest destination folder for a file or execute filing (Section 17)."""
+    settings = _load_settings(args)
+    from filegraph.filing import file_document
+
+    rec, dest = file_document(
+        args.path,
+        target_root=getattr(args, "root", None),
+        apply=getattr(args, "apply", False),
+        move=getattr(args, "move", False),
+        yes=getattr(args, "yes", False),
+        settings=settings,
+    )
+
+    folder_disp = rec["folder"] if rec["folder"] else "(root directory)"
+    print(f"\nRecommended Folder: {folder_disp}")
+    print(f"Confidence: {rec['confidence']:.2f} ({'New folder' if rec['is_new_folder'] else 'Existing folder'})")
+    print(f"Reasoning: {rec['reasoning']}")
+    if rec.get("alternatives"):
+        print(f"Alternatives: {', '.join(rec['alternatives'])}")
+    if dest:
+        action = "Moved" if getattr(args, "move", False) else "Copied"
+        print(f"Action: {action} to {dest}")
+    return 0
+
+
+def cmd_backtest(args: argparse.Namespace) -> int:
+    """Backtest filing accuracy (Section 17)."""
+    settings = _load_settings(args)
+    from filegraph.filing import backtest
+
+    stats = backtest(
+        settings,
+        n=getattr(args, "n", 20),
+        root_name=getattr(args, "root", None),
+        model=getattr(args, "model", None),
+    )
+    print("\nBacktest Results:")
+    print(f"  Total documents tested: {stats['total']}")
+    print(f"  Exact match accuracy:   {stats['exact_acc'] * 100:.1f}% ({stats['exact_matches']}/{stats['total']})")
+    print(f"  Top-3 accuracy:          {stats['top3_acc'] * 100:.1f}% ({stats['top3_matches']}/{stats['total']})")
+    if stats.get("high_conf_total", 0) > 0:
+        print(f"  High confidence (>=0.8): {stats['high_conf_acc'] * 100:.1f}% ({stats['high_conf_exact']}/{stats['high_conf_total']})")
+    if "csv_path" in stats:
+        print(f"  Detailed results:       {stats['csv_path']}")
+    return 0
+
+
+def cmd_mcp(args: argparse.Namespace) -> int:
+    """Start MCP server on stdio (Section 20)."""
+    settings = _load_settings(args)
+    try:
+        from filegraph.mcp_server import run_mcp_server
+        run_mcp_server(settings)
+    except ImportError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    """Watch roots for file changes (Section 18.1)."""
+    settings = _load_settings(args)
+    from filegraph.watch import watch_roots
+
+    interval = getattr(args, "interval", 300)
+    watch_roots(settings, interval=interval)
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """Full pipeline: ingest → extract → repos summarize → link → embed → vault → graph → review-csv (Section 18)."""
+    settings = _load_settings(args)
+    from filegraph.watch import run_full_pipeline
+
+    run_full_pipeline(
+        settings,
+        root_filter=getattr(args, "root", None),
+        limit=getattr(args, "limit", None),
+        yes=getattr(args, "yes", False),
+    )
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -456,6 +692,19 @@ def main(argv: list[str] | None = None) -> int:
         "vault": cmd_vault,
         "review-csv": cmd_review_csv,
         "report": cmd_report,
+        "embed": cmd_embed,
+        "search": cmd_search,
+        "ask": cmd_ask,
+        "chat": cmd_chat,
+        "discover": cmd_discover,
+        "propose-card": cmd_propose_card,
+        "cards": cmd_cards,
+        "repos": cmd_repos,
+        "file": cmd_file,
+        "backtest": cmd_backtest,
+        "mcp": cmd_mcp,
+        "watch": cmd_watch,
+        "run": cmd_run,
     }.get(args.command)
 
     if handler:

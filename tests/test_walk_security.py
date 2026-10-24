@@ -78,6 +78,29 @@ def test_redact_secrets():
     assert "VerySecretPassword789" not in red_assign
     assert n_assign == 3
 
+    # 4. Indian IDs, bank accounts, and recovery codes
+    pii_text = (
+        "Aadhaar: 1234 5678 9012\n"
+        "PAN: ABCDE1234F\n"
+        "Bank Acc: A/C No: 1234567890123\n"
+        "Recovery: fb780-bb7a3\n"
+    )
+    red_pii, n_pii = redact(pii_text)
+    assert "1234 5678 9012" not in red_pii
+    assert "ABCDE1234F" not in red_pii
+    assert "1234567890123" not in red_pii
+    assert "fb780-bb7a3" not in red_pii
+    assert n_pii >= 4
+
+
+def test_deny_list_passwords_and_recovery():
+    """Verify denial of password folders and recovery files."""
+    assert is_denied("Passwords/github-recovery-codes.txt")
+    assert is_denied("passwords/keys.txt")
+    assert is_denied("backup_codes.txt")
+    assert is_denied("recovery-codes.txt")
+    assert is_denied("my_secret_token.txt")
+
 
 def test_walk_root_ignore_and_deny():
     """Verify walking skips ignored, junk, and denied files."""

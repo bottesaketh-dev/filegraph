@@ -32,6 +32,14 @@ BUILTIN_DENY_PATTERNS = [
     "**/*.sqlite-wal",
     "**/AppData/**/Browser*/**",
     "**/Library/Keychains/**",
+    "**/Passwords/**",
+    "**/passwords/**",
+    "**/*recovery*code*",
+    "**/*recovery*codes*",
+    "**/*backup*code*",
+    "**/*backup*codes*",
+    "**/*secret*",
+    "**/*secrets*",
 ]
 
 # Exceptions to the deny list
@@ -109,6 +117,11 @@ _RE_JWT = re.compile(
 _RE_ASSIGNMENT = re.compile(
     r"""(?i)\b(api[_-]?key|secret|token|password|passwd|pwd|client[_-]?secret)(\s*[:=]\s*)(['"]?)([^\s'"]{8,})\3"""
 )
+# Indian Government IDs & Sensitive Numbers
+_RE_AADHAAR = re.compile(r"\b\d{4}[\s-]\d{4}[\s-]\d{4}\b")
+_RE_PAN = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b")
+_RE_BANK_ACC = re.compile(r"(?i)\b(?:a/c|acc(?:ount)?)\s*(?:no|num|number)?\s*[:=.]?\s*(\d{9,18})\b")
+_RE_RECOVERY_CODE = re.compile(r"\b[0-9a-f]{4,5}-[0-9a-f]{4,5}\b")
 
 
 def redact(text: str) -> tuple[str, int]:
@@ -130,11 +143,21 @@ def redact(text: str) -> tuple[str, int]:
     # 1. Private keys
     text = _RE_PRIVATE_KEY.sub(_replace_simple, text)
 
-    # 2. Token / key patterns
-    for pat in (_RE_AWS, _RE_GITHUB, _RE_SLACK, _RE_OPENAI, _RE_GOOGLE, _RE_JWT):
+    # 2. Token / key patterns and PII
+    for pat in (_RE_AWS, _RE_GITHUB, _RE_SLACK, _RE_OPENAI, _RE_GOOGLE, _RE_JWT, _RE_AADHAAR, _RE_PAN, _RE_RECOVERY_CODE):
         text = pat.sub(_replace_simple, text)
 
-    # 3. Key-value assignments: keep key name and assignment operator, redact value
+    # 3. Bank account numbers
+    def _replace_bank(match: re.Match[str]) -> str:
+        nonlocal n_redacted
+        n_redacted += 1
+        full = match.group(0)
+        acc_num = match.group(1)
+        return full.replace(acc_num, "[REDACTED]")
+
+    text = _RE_BANK_ACC.sub(_replace_bank, text)
+
+    # 4. Key-value assignments: keep key name and assignment operator, redact value
     def _replace_assignment(match: re.Match[str]) -> str:
         nonlocal n_redacted
         key_name = match.group(1)
